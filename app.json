@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Fitness Streak Tracker",
-    "slug": "fitness_tracker",
+    "slug": "fitnessapp",
     "scheme": "fitnesstracker",
     "version": "1.0.0",
     "orientation": "portrait",

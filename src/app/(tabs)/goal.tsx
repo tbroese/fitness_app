@@ -18,7 +18,10 @@ import {
   setupGymGeofence,
 } from '../../services/locationService';
 import { theme } from '../../constants/theme';
+import { PARTNERED_GYMS, PartneredGym } from '../../constants/partneredGyms';
 import { FIXED_DWELL_MINUTES, DEFAULT_GEOFENCE_RADIUS_METERS } from '../../types/fitness';
+
+type GymSetupMode = 'existing' | 'custom';
 
 export default function GoalSetupScreen() {
   const {
@@ -33,13 +36,39 @@ export default function GoalSetupScreen() {
   const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const pendingScrollToBottomRef = useRef(false);
 
+  const initialMatchedPartner = preferences.gymLocation
+    ? PARTNERED_GYMS.find(
+        (g) =>
+          g.id === preferences.gymLocation?.id ||
+          g.name.toLowerCase() === preferences.gymLocation?.name.toLowerCase()
+      ) || null
+    : null;
+
+  const isSavedCustomGym = Boolean(preferences.gymLocation && !initialMatchedPartner);
+
   const [selectedGoal, setSelectedGoal] = useState<number>(preferences.weeklyGoal);
-  const [gymName, setGymName] = useState<string>(preferences.gymLocation?.name || '');
+  const [gymMode, setGymMode] = useState<GymSetupMode>(
+    isSavedCustomGym ? 'custom' : 'existing'
+  );
+
+  // State for "Add Existing Gym"
+  const [searchQuery, setSearchQuery] = useState<string>(
+    initialMatchedPartner ? initialMatchedPartner.name : ''
+  );
+  const [selectedPartnerGym, setSelectedPartnerGym] = useState<PartneredGym | null>(
+    initialMatchedPartner
+  );
+  const [dropdownOpen, setDropdownOpen] = useState<boolean>(true);
+
+  // State for "Add Custom Gym" (never pre-filled from partnered gyms)
+  const [gymName, setGymName] = useState<string>(
+    isSavedCustomGym && preferences.gymLocation ? preferences.gymLocation.name : ''
+  );
   const [lat, setLat] = useState<string>(
-    preferences.gymLocation ? String(preferences.gymLocation.latitude) : ''
+    isSavedCustomGym && preferences.gymLocation ? String(preferences.gymLocation.latitude) : ''
   );
   const [lon, setLon] = useState<string>(
-    preferences.gymLocation ? String(preferences.gymLocation.longitude) : ''
+    isSavedCustomGym && preferences.gymLocation ? String(preferences.gymLocation.longitude) : ''
   );
   const [isLocating, setIsLocating] = useState(false);
 
@@ -50,19 +79,32 @@ export default function GoalSetupScreen() {
 
   // Sync gym fields when saved gymLocation changes
   useEffect(() => {
-    if (preferences.gymLocation) {
+    if (!preferences.gymLocation) return;
+
+    const matchedPartner = PARTNERED_GYMS.find(
+      (g) =>
+        g.id === preferences.gymLocation?.id ||
+        g.name.toLowerCase() === preferences.gymLocation?.name.toLowerCase()
+    );
+
+    if (matchedPartner) {
+      setGymMode('existing');
+      setSelectedPartnerGym(matchedPartner);
+      setSearchQuery(matchedPartner.name);
+    } else {
+      setGymMode('custom');
       setGymName(preferences.gymLocation.name);
       setLat(String(preferences.gymLocation.latitude));
       setLon(String(preferences.gymLocation.longitude));
     }
   }, [preferences.gymLocation]);
 
-  // Scroll to bottom when navigated from "Setup Gym Location" box
+  // Ensure top of page (Gym Location box) is visible when navigated from "Setup Gym Location" box
   useEffect(() => {
     if (scrollTo === 'gym') {
       pendingScrollToBottomRef.current = true;
       const timer = setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
         pendingScrollToBottomRef.current = false;
       }, 150);
       return () => clearTimeout(timer);
@@ -146,7 +188,66 @@ export default function GoalSetupScreen() {
     }
   };
 
+  const filteredPartnerGyms = PARTNERED_GYMS.filter((gym) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      gym.name.toLowerCase().includes(q) ||
+      gym.address.toLowerCase().includes(q)
+    );
+  });
+
+  const handleSearchChange = (text: string) => {
+    setSearchQuery(text);
+    setDropdownOpen(true);
+    if (
+      selectedPartnerGym &&
+      text.trim().toLowerCase() !== selectedPartnerGym.name.toLowerCase()
+    ) {
+      setSelectedPartnerGym(null);
+    }
+  };
+
+  const handleSelectPartnerGym = (gym: PartneredGym) => {
+    setSelectedPartnerGym(gym);
+    setSearchQuery(gym.name);
+    setDropdownOpen(false);
+  };
+
   const handleSaveGym = async () => {
+    if (gymMode === 'existing') {
+      const gymToSave =
+        selectedPartnerGym ||
+        PARTNERED_GYMS.find(
+          (g) => g.name.toLowerCase() === searchQuery.trim().toLowerCase()
+        );
+
+      if (!gymToSave) {
+        Alert.alert(
+          'Select an Existing Gym',
+          'Please select a gym from the dropdown list.'
+        );
+        return;
+      }
+
+      const newGym = {
+        id: gymToSave.id,
+        name: gymToSave.name,
+        address: gymToSave.address,
+        isPartnered: true,
+        latitude: gymToSave.latitude,
+        longitude: gymToSave.longitude,
+        radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Fixed at 300m
+        dwellMinutesRequired: FIXED_DWELL_MINUTES, // Fixed at 15m
+      };
+
+      await updateGymLocation(newGym);
+      setupGymGeofence(newGym);
+
+      Alert.alert('Saved!', `Gym "${newGym.name}" has been configured.`);
+      return;
+    }
+
     const parsedLat = parseFloat(lat);
     const parsedLon = parseFloat(lon);
 
@@ -156,8 +257,12 @@ export default function GoalSetupScreen() {
     }
 
     const newGym = {
-      id: preferences.gymLocation?.id || `gym_${Date.now()}`,
+      id:
+        preferences.gymLocation && !preferences.gymLocation.isPartnered
+          ? preferences.gymLocation.id
+          : `gym_${Date.now()}`,
       name: gymName.trim() || 'My Gym',
+      isPartnered: false,
       latitude: parsedLat,
       longitude: parsedLon,
       radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Fixed at 300m
@@ -176,14 +281,237 @@ export default function GoalSetupScreen() {
         ref={scrollViewRef}
         style={styles.container}
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => {
           if (pendingScrollToBottomRef.current) {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
+            scrollViewRef.current?.scrollTo({ y: 0, animated: true });
             pendingScrollToBottomRef.current = false;
           }
         }}
       >
-        {/* Section 1: Weekly Goal */}
+        {/* Section 1: Gym Location Setup (Placed at top so keyboard never covers search) */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="location-outline" size={22} color={theme.primaryLight} />
+            <Text style={styles.sectionTitle}>Gym Location</Text>
+          </View>
+          <Text style={styles.sectionDesc}>
+            Choose an existing partnered gym or add a custom gym. The app will automatically detect your arrival and verify your workout when you stay for {FIXED_DWELL_MINUTES} minutes.
+          </Text>
+
+          {/* 2 Options: Add Existing Gym vs Add Custom Gym */}
+          <View style={styles.modeToggleRow}>
+            <TouchableOpacity
+              style={[
+                styles.modeToggleBtn,
+                gymMode === 'existing' && styles.modeToggleBtnActive,
+              ]}
+              onPress={() => setGymMode('existing')}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name="business-outline"
+                size={16}
+                color={gymMode === 'existing' ? '#FFFFFF' : theme.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.modeToggleText,
+                  gymMode === 'existing' && styles.modeToggleTextActive,
+                ]}
+              >
+                Add Existing Gym
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.modeToggleBtn,
+                gymMode === 'custom' && styles.modeToggleBtnActive,
+              ]}
+              onPress={() => setGymMode('custom')}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={16}
+                color={gymMode === 'custom' ? '#FFFFFF' : theme.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.modeToggleText,
+                  gymMode === 'custom' && styles.modeToggleTextActive,
+                ]}
+              >
+                Add Custom Gym
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {gymMode === 'existing' ? (
+            <View>
+              <Text style={styles.fieldLabel}>Search Existing Gyms</Text>
+              <View style={styles.searchInputWrapper}>
+                <Ionicons
+                  name="search-outline"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChangeText={handleSearchChange}
+                  onFocus={() => setDropdownOpen(true)}
+                  placeholder="Type gym name or city/address..."
+                  placeholderTextColor={theme.textTertiary}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSearchQuery('');
+                      setSelectedPartnerGym(null);
+                      setDropdownOpen(true);
+                    }}
+                    style={styles.clearSearchBtn}
+                  >
+                    <Ionicons name="close-circle" size={18} color={theme.textTertiary} />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={() => setDropdownOpen((prev) => !prev)}
+                  style={styles.dropdownToggleBtn}
+                >
+                  <Ionicons
+                    name={dropdownOpen ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Dropdown of matching existing gyms */}
+              {dropdownOpen && (
+                <View style={styles.dropdownList}>
+                  {filteredPartnerGyms.length > 0 ? (
+                    filteredPartnerGyms.map((gym) => {
+                      const isSelected = selectedPartnerGym?.id === gym.id;
+                      return (
+                        <TouchableOpacity
+                          key={gym.id}
+                          style={[
+                            styles.dropdownItem,
+                            isSelected && styles.dropdownItemSelected,
+                          ]}
+                          onPress={() => handleSelectPartnerGym(gym)}
+                          activeOpacity={0.8}
+                        >
+                          <View style={styles.dropdownItemIcon}>
+                            <Ionicons
+                              name="barbell-outline"
+                              size={18}
+                              color={isSelected ? theme.primaryLight : theme.textSecondary}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.dropdownGymName}>{gym.name}</Text>
+                            <Text style={styles.dropdownGymAddress}>{gym.address}</Text>
+                          </View>
+                          {isSelected && (
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={20}
+                              color={theme.primaryLight}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    <View style={styles.dropdownEmpty}>
+                      <Text style={styles.dropdownEmptyText}>
+                        No matching existing gyms found.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Selected Partnered Gym Summary (Coordinates hidden & locked) */}
+              {selectedPartnerGym && (
+                <View style={styles.selectedPartnerCard}>
+                  <Ionicons name="checkmark-circle" size={22} color={theme.successLight} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.selectedPartnerName}>
+                      {selectedPartnerGym.name}
+                    </Text>
+                    <Text style={styles.selectedPartnerAddress}>
+                      {selectedPartnerGym.address}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View>
+              {/* Gym Name */}
+              <Text style={styles.fieldLabel}>Gym Name</Text>
+              <TextInput
+                style={styles.input}
+                value={gymName}
+                onChangeText={setGymName}
+                placeholder="e.g. Gold's Gym Downtown"
+                placeholderTextColor={theme.textTertiary}
+              />
+
+              {/* Quick detect button */}
+              <TouchableOpacity
+                style={styles.gpsDetectBtn}
+                onPress={handleUseCurrentLocation}
+                disabled={isLocating}
+              >
+                <Ionicons name="navigate" size={16} color={theme.primaryLight} />
+                <Text style={styles.gpsDetectText}>
+                  {isLocating ? 'Detecting GPS...' : 'Set To Current Location'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Coordinates */}
+              <View style={styles.coordRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>Latitude</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={lat}
+                    onChangeText={setLat}
+                    keyboardType="numeric"
+                    placeholder="37.7749"
+                    placeholderTextColor={theme.textTertiary}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>Longitude</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={lon}
+                    onChangeText={setLon}
+                    keyboardType="numeric"
+                    placeholder="-122.4194"
+                    placeholderTextColor={theme.textTertiary}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Save Button */}
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveGym}>
+            <Ionicons name="save-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.saveBtnText}>Save Gym Settings</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Section 2: Weekly Goal */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Ionicons name="trophy-outline" size={22} color={theme.primaryLight} />
@@ -257,71 +585,6 @@ export default function GoalSetupScreen() {
               </Text>
             </View>
           )}
-        </View>
-
-        {/* Section 2: Gym Location Setup (Radius is completely hidden) */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="location-outline" size={22} color={theme.primaryLight} />
-            <Text style={styles.sectionTitle}>Gym Location</Text>
-          </View>
-          <Text style={styles.sectionDesc}>
-            Set your gym coordinates. The app will automatically detect your arrival and verify your workout when you stay for {FIXED_DWELL_MINUTES} minutes.
-          </Text>
-
-          {/* Gym Name */}
-          <Text style={styles.fieldLabel}>Gym Name</Text>
-          <TextInput
-            style={styles.input}
-            value={gymName}
-            onChangeText={setGymName}
-            placeholder="e.g. Gold's Gym Downtown"
-            placeholderTextColor={theme.textTertiary}
-          />
-
-          {/* Quick detect button */}
-          <TouchableOpacity
-            style={styles.gpsDetectBtn}
-            onPress={handleUseCurrentLocation}
-            disabled={isLocating}
-          >
-            <Ionicons name="navigate" size={16} color={theme.primaryLight} />
-            <Text style={styles.gpsDetectText}>
-              {isLocating ? 'Detecting GPS...' : 'Set To Current Location'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Coordinates */}
-          <View style={styles.coordRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>Latitude</Text>
-              <TextInput
-                style={styles.input}
-                value={lat}
-                onChangeText={setLat}
-                keyboardType="numeric"
-                placeholder="37.7749"
-                placeholderTextColor={theme.textTertiary}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>Longitude</Text>
-              <TextInput
-                style={styles.input}
-                value={lon}
-                onChangeText={setLon}
-                keyboardType="numeric"
-                placeholder="-122.4194"
-                placeholderTextColor={theme.textTertiary}
-              />
-            </View>
-          </View>
-
-          {/* Save Button */}
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveGym}>
-            <Ionicons name="save-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.saveBtnText}>Save Gym Settings</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -481,6 +744,127 @@ const styles = StyleSheet.create({
     color: theme.textPrimary,
     marginTop: 14,
     marginBottom: 6,
+  },
+  modeToggleRow: {
+    flexDirection: 'row',
+    backgroundColor: theme.inputBackground,
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    gap: 6,
+  },
+  modeToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 9,
+  },
+  modeToggleBtnActive: {
+    backgroundColor: theme.primary,
+  },
+  modeToggleText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.textSecondary,
+  },
+  modeToggleTextActive: {
+    color: '#FFFFFF',
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.inputBackground,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: theme.textPrimary,
+  },
+  clearSearchBtn: {
+    padding: 4,
+  },
+  dropdownToggleBtn: {
+    padding: 4,
+    marginLeft: 2,
+  },
+  dropdownList: {
+    marginTop: 8,
+    backgroundColor: theme.inputBackground,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.cardBorder,
+  },
+  dropdownItemSelected: {
+    backgroundColor: theme.primaryMuted,
+  },
+  dropdownItemIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: theme.cardBackgroundSubtle,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownGymName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.textPrimary,
+  },
+  dropdownGymAddress: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: 2,
+  },
+  dropdownEmpty: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  dropdownEmptyText: {
+    fontSize: 13,
+    color: theme.textTertiary,
+  },
+  selectedPartnerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: theme.successMuted,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+  },
+  selectedPartnerName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.textPrimary,
+  },
+  selectedPartnerAddress: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: 2,
   },
   input: {
     backgroundColor: theme.inputBackground,

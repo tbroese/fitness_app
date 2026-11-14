@@ -2,12 +2,16 @@ import { StreakState, WorkoutSession, UserPreferences } from '../types/fitness';
 import {
   formatDateToYYYYMMDD,
   getIsoWeekId,
-  getPreviousIsoWeekId,
-  getDaysRemainingInWeek,
+  getAvailableWorkoutDaysRemaining,
 } from '../utils/dateUtils';
+
+export const STREAK_LOST_MESSAGE = 'Streak lost. Your new streak will start next week.';
 
 /**
  * Evaluates whether the streak resets upon crossing week boundaries or loading the app.
+ * Rule: If there are less days in the week than needed to reach the goal,
+ * the streak resets to 0 and displays:
+ * "Streak lost. Your new streak will start next week."
  */
 export function evaluateWeeklyReset(
   currentState: StreakState,
@@ -16,50 +20,58 @@ export function evaluateWeeklyReset(
   currentDate: Date = new Date()
 ): StreakState {
   const currentWeekId = getIsoWeekId(currentDate);
+  const todayStr = formatDateToYYYYMMDD(currentDate);
+  const workedOutToday = workouts.some((w) => w.dateString === todayStr);
 
-  // If this is the initial state
-  if (!currentState.lastEvaluatedWeekId) {
-    const workoutsThisWeek = workouts.filter((w) => w.weekId === currentWeekId).length;
-    return {
-      ...currentState,
-      currentWeekWorkouts: workoutsThisWeek,
-      lastEvaluatedWeekId: currentWeekId,
-      streakStatus: determineStatus(workoutsThisWeek, preferences.weeklyGoal, currentDate),
-    };
-  }
+  let newStreak = currentState.currentStreak;
+  let isReset = false;
+  let statusMessage: string | undefined;
 
-  // If we transitioned to a new week
-  if (currentState.lastEvaluatedWeekId !== currentWeekId) {
-    // Workouts completed during the previous week
-    const lastEvaluatedWeek = currentState.lastEvaluatedWeekId;
-    const priorWeekWorkouts = workouts.filter((w) => w.weekId === lastEvaluatedWeek).length;
-
-    let newStreak = currentState.currentStreak;
-    let isReset = false;
-
-    // Reset condition: If user did not achieve the weekly goal
+  // 1. Check if week transitioned from previous week
+  if (currentState.lastEvaluatedWeekId && currentState.lastEvaluatedWeekId !== currentWeekId) {
+    const priorWeekWorkouts = workouts.filter((w) => w.weekId === currentState.lastEvaluatedWeekId).length;
     if (priorWeekWorkouts < preferences.weeklyGoal) {
       newStreak = 0;
       isReset = true;
     }
-
-    const currentWeekWorkouts = workouts.filter((w) => w.weekId === currentWeekId).length;
-
-    return {
-      ...currentState,
-      currentStreak: newStreak,
-      currentWeekWorkouts,
-      lastEvaluatedWeekId: currentWeekId,
-      streakStatus: isReset ? 'reset' : determineStatus(currentWeekWorkouts, preferences.weeklyGoal, currentDate),
-    };
   }
 
-  // Same week - update current count and risk status
+  // 2. Count workouts in current week
   const currentWeekWorkouts = workouts.filter((w) => w.weekId === currentWeekId).length;
+
+  // 3. Mid-week feasibility check:
+  // If user has not yet met the weekly goal, check if enough days remain
+  if (currentWeekWorkouts < preferences.weeklyGoal) {
+    const needed = preferences.weeklyGoal - currentWeekWorkouts;
+    const daysAvailable = getAvailableWorkoutDaysRemaining(currentDate, workedOutToday);
+
+    if (daysAvailable < needed) {
+      // Mathematically impossible to meet weekly goal this week
+      newStreak = 0;
+      isReset = true;
+      statusMessage = STREAK_LOST_MESSAGE;
+    }
+  }
+
+  let streakStatus: 'active' | 'at_risk' | 'reset' = 'active';
+  if (isReset || currentState.streakStatus === 'reset' && currentState.lastEvaluatedWeekId === currentWeekId) {
+    streakStatus = 'reset';
+    newStreak = 0;
+    statusMessage = STREAK_LOST_MESSAGE;
+  } else if (currentWeekWorkouts >= preferences.weeklyGoal) {
+    streakStatus = 'active';
+  } else {
+    // Has not met goal, but still has enough days remaining
+    streakStatus = 'at_risk';
+  }
+
   return {
     ...currentState,
+    currentStreak: newStreak,
     currentWeekWorkouts,
-    streakStatus: determineStatus(currentWeekWorkouts, preferences.weeklyGoal, currentDate),
+    lastEvaluatedWeekId: currentWeekId,
+    streakStatus,
+    statusMessage,
   };
 }
 
@@ -107,48 +119,38 @@ export function recordCompletedWorkout(
   };
 
   const updatedWorkouts = [newWorkout, ...existingWorkouts];
-  const newStreak = currentState.currentStreak + 1;
-  const bestStreak = Math.max(currentState.bestStreak, newStreak);
   const currentWeekWorkouts = currentState.currentWeekWorkouts + 1;
 
-  const updatedState: StreakState = {
-    ...currentState,
-    currentStreak: newStreak,
-    bestStreak,
-    currentWeekWorkouts,
-    lastCompletedDate: dateString,
-    lastEvaluatedWeekId: weekId,
-    streakStatus: determineStatus(currentWeekWorkouts, preferences.weeklyGoal, workoutDate),
-  };
+  // If streak was already lost for this week, it stays 0 until next week
+  let newStreak = currentState.currentStreak;
+  if (currentState.streakStatus !== 'reset') {
+    newStreak = currentState.currentStreak + 1;
+  }
+
+  const bestStreak = Math.max(currentState.bestStreak, newStreak);
+
+  // Re-evaluate feasibility
+  const evaluated = evaluateWeeklyReset(
+    {
+      ...currentState,
+      currentStreak: newStreak,
+      bestStreak,
+      currentWeekWorkouts,
+      lastCompletedDate: dateString,
+      lastEvaluatedWeekId: weekId,
+    },
+    preferences,
+    updatedWorkouts,
+    workoutDate
+  );
 
   return {
     success: true,
-    message: `Workout verified at ${gymName}! Streak is now ${newStreak} 🔥`,
-    updatedState,
+    message: evaluated.streakStatus === 'reset'
+      ? `Workout logged! However, ${STREAK_LOST_MESSAGE}`
+      : `Workout verified at ${gymName}! Streak is now ${newStreak} 🔥`,
+    updatedState: evaluated,
     newWorkout,
     updatedWorkouts,
   };
-}
-
-/**
- * Calculates whether the user is on track, at risk of resetting, or has achieved their weekly target.
- */
-function determineStatus(
-  currentWeekWorkouts: number,
-  weeklyGoal: number,
-  currentDate: Date
-): 'active' | 'at_risk' | 'reset' {
-  if (currentWeekWorkouts >= weeklyGoal) {
-    return 'active';
-  }
-
-  const remainingWorkouts = weeklyGoal - currentWeekWorkouts;
-  const daysRemaining = getDaysRemainingInWeek(currentDate) + 1; // including today
-
-  // If there are fewer days left in the week than needed workouts, the goal cannot be met!
-  if (daysRemaining < remainingWorkouts) {
-    return 'at_risk';
-  }
-
-  return 'active';
 }

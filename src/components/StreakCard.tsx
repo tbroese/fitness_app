@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StreakState } from '../types/fitness';
+import { theme } from '../constants/theme';
+import { STREAK_LOST_MESSAGE } from '../services/streakManager';
 
 interface StreakCardProps {
   streakState: StreakState;
@@ -13,14 +15,19 @@ export const StreakCard: React.FC<StreakCardProps> = ({ streakState, weeklyGoal 
   const isReset = streakState.streakStatus === 'reset';
 
   return (
-    <View style={[styles.container, isAtRisk && styles.containerAtRisk]}>
+    <View style={[styles.container, isReset && styles.containerReset, isAtRisk && styles.containerAtRisk]}>
       <View style={styles.headerRow}>
         <View style={styles.badgeRow}>
-          <View style={[styles.iconCircle, isAtRisk && styles.iconCircleAtRisk]}>
+          <View
+            style={[
+              styles.iconCircle,
+              isReset ? styles.iconCircleReset : isAtRisk ? styles.iconCircleAtRisk : styles.iconCircleActive,
+            ]}
+          >
             <Ionicons
-              name={streakState.currentStreak > 0 ? 'flame' : 'flame-outline'}
+              name={isReset ? 'flame-outline' : streakState.currentStreak > 0 ? 'flame' : 'flame-outline'}
               size={36}
-              color={isAtRisk ? '#FF9800' : '#FF5722'}
+              color={isReset ? theme.danger : isAtRisk ? theme.warning : theme.flame}
             />
           </View>
           <View>
@@ -39,23 +46,23 @@ export const StreakCard: React.FC<StreakCardProps> = ({ streakState, weeklyGoal 
 
       {/* Status Banner */}
       <View style={styles.statusContainer}>
-        {isAtRisk ? (
+        {isReset ? (
+          <View style={styles.statusBadgeReset}>
+            <Ionicons name="close-circle" size={18} color={theme.danger} />
+            <Text style={styles.statusTextReset}>
+              {streakState.statusMessage || STREAK_LOST_MESSAGE}
+            </Text>
+          </View>
+        ) : isAtRisk ? (
           <View style={styles.statusBadgeWarning}>
-            <Ionicons name="warning" size={16} color="#E65100" />
+            <Ionicons name="warning" size={18} color={theme.warning} />
             <Text style={styles.statusTextWarning}>
               Streak at risk! You must hit {weeklyGoal} workouts this week to keep it alive.
             </Text>
           </View>
-        ) : isReset ? (
-          <View style={styles.statusBadgeReset}>
-            <Ionicons name="refresh-circle" size={16} color="#757575" />
-            <Text style={styles.statusTextReset}>
-              Streak reset. Reach {weeklyGoal} workouts this week to start a new streak!
-            </Text>
-          </View>
         ) : (
           <View style={styles.statusBadgeActive}>
-            <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
+            <Ionicons name="checkmark-circle" size={18} color={theme.success} />
             <Text style={styles.statusTextActive}>
               Streak active! Keep going to maintain your momentum.
             </Text>
@@ -68,22 +75,26 @@ export const StreakCard: React.FC<StreakCardProps> = ({ streakState, weeklyGoal 
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.cardBackground,
     borderRadius: 20,
     padding: 20,
     marginHorizontal: 16,
     marginVertical: 10,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
+  },
+  containerReset: {
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
   },
   containerAtRisk: {
-    borderColor: '#FFE0B2',
-    backgroundColor: '#FFFDF9',
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    backgroundColor: 'rgba(245, 158, 11, 0.05)',
   },
   headerRow: {
     flexDirection: 'row',
@@ -99,45 +110,52 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FFECE0',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  iconCircleActive: {
+    backgroundColor: theme.flameMuted,
+  },
   iconCircleAtRisk: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: theme.warningMuted,
+  },
+  iconCircleReset: {
+    backgroundColor: theme.dangerMuted,
   },
   label: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
-    color: '#8E8E93',
+    color: theme.textSecondary,
   },
   streakCount: {
     fontSize: 32,
     fontWeight: '900',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   streakUnit: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: theme.textSecondary,
   },
   bestBadge: {
     alignItems: 'flex-end',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: theme.cardBackgroundSubtle,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   bestLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#8E8E93',
+    color: theme.textTertiary,
   },
   bestValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
     marginTop: 2,
   },
   statusContainer: {
@@ -146,46 +164,53 @@ const styles = StyleSheet.create({
   statusBadgeActive: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    gap: 8,
+    backgroundColor: theme.successMuted,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   statusTextActive: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: theme.successLight,
     flex: 1,
   },
   statusBadgeWarning: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF3E0',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    gap: 8,
+    backgroundColor: theme.warningMuted,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
   },
   statusTextWarning: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#E65100',
+    color: theme.warning,
     flex: 1,
   },
   statusBadgeReset: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    gap: 8,
+    backgroundColor: theme.dangerMuted,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   statusTextReset: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#616161',
+    fontWeight: '700',
+    color: '#F87171',
     flex: 1,
+    lineHeight: 18,
   },
 });

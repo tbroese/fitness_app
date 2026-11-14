@@ -16,6 +16,7 @@ import {
   requestLocationPermissions,
   setupGymGeofence,
 } from '../../services/locationService';
+import { theme } from '../../constants/theme';
 
 export default function GoalSetupScreen() {
   const { preferences, setWeeklyGoal, updateGymLocation } = useFitness();
@@ -105,11 +106,11 @@ export default function GoalSetupScreen() {
         {/* Section 1: Weekly Goal */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="trophy-outline" size={22} color="#007AFF" />
+            <Ionicons name="trophy-outline" size={22} color={theme.primaryLight} />
             <Text style={styles.sectionTitle}>Weekly Workout Goal</Text>
           </View>
           <Text style={styles.sectionDesc}>
-            Select how many workouts you plan to do each week. If you miss this threshold, your streak resets back to 0 at the end of the week.
+            Select how many workouts you plan to do each week. If fewer days remain in the week than needed, your streak resets and restarts next week.
           </Text>
 
           <View style={styles.goalRow}>
@@ -131,7 +132,7 @@ export default function GoalSetupScreen() {
 
           <View style={styles.goalSummaryBox}>
             <Text style={styles.goalSummaryText}>
-              Target: <Text style={{ fontWeight: '800' }}>{selectedGoal} workouts per week</Text>
+              Target: <Text style={{ fontWeight: '800', color: theme.primaryLight }}>{selectedGoal} workouts per week</Text>
             </Text>
             <Text style={styles.goalSummarySub}>
               {selectedGoal >= 5
@@ -146,7 +147,7 @@ export default function GoalSetupScreen() {
         {/* Section 2: Gym Location & Geofence */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="location-outline" size={22} color="#007AFF" />
+            <Ionicons name="location-outline" size={22} color={theme.primaryLight} />
             <Text style={styles.sectionTitle}>Gym Location & Geofence</Text>
           </View>
           <Text style={styles.sectionDesc}>
@@ -160,6 +161,7 @@ export default function GoalSetupScreen() {
             value={gymName}
             onChangeText={setGymName}
             placeholder="e.g. Gold's Gym Downtown"
+            placeholderTextColor={theme.textTertiary}
           />
 
           {/* Quick detect button */}
@@ -168,7 +170,7 @@ export default function GoalSetupScreen() {
             onPress={handleUseCurrentLocation}
             disabled={isLocating}
           >
-            <Ionicons name="navigate" size={16} color="#007AFF" />
+            <Ionicons name="navigate" size={16} color={theme.primaryLight} />
             <Text style={styles.gpsDetectText}>
               {isLocating ? 'Detecting GPS...' : 'Set To Current Location'}
             </Text>
@@ -184,6 +186,7 @@ export default function GoalSetupScreen() {
                 onChangeText={setLat}
                 keyboardType="numeric"
                 placeholder="37.7749"
+                placeholderTextColor={theme.textTertiary}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -194,6 +197,7 @@ export default function GoalSetupScreen() {
                 onChangeText={setLon}
                 keyboardType="numeric"
                 placeholder="-122.4194"
+                placeholderTextColor={theme.textTertiary}
               />
             </View>
           </View>
@@ -247,7 +251,7 @@ export default function GoalSetupScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: theme.background,
   },
   container: {
     flex: 1,
@@ -257,17 +261,17 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   sectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.cardBackground,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -278,11 +282,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   sectionDesc: {
     fontSize: 13,
-    color: '#636366',
+    color: theme.textSecondary,
     lineHeight: 18,
     marginBottom: 16,
   },
@@ -296,16 +300,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 3,
     paddingVertical: 12,
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: theme.cardBackgroundSubtle,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   goalPillSelected: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   goalPillText: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   goalPillTextSelected: {
     color: '#FFFFFF',
@@ -313,64 +320,66 @@ const styles = StyleSheet.create({
   goalPillSub: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   goalPillSubSelected: {
-    color: '#FFFFFFCC',
+    color: 'rgba(255,255,255,0.85)',
   },
   goalSummaryBox: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.cardBackgroundSubtle,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.cardBorder,
   },
   goalSummaryText: {
     fontSize: 14,
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   goalSummarySub: {
     fontSize: 12,
-    color: '#64748B',
+    color: theme.textSecondary,
     marginTop: 4,
   },
   fieldLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
     marginTop: 14,
     marginBottom: 6,
   },
   fieldSub: {
     fontSize: 11,
-    color: '#8E8E93',
+    color: theme.textSecondary,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#F9F9FB',
+    backgroundColor: theme.inputBackground,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: theme.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   gpsDetectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#007AFF12',
-    paddingVertical: 10,
+    backgroundColor: theme.primaryMuted,
+    paddingVertical: 12,
     borderRadius: 12,
     marginTop: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
   },
   gpsDetectText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#007AFF',
+    color: theme.primaryLight,
   },
   coordRow: {
     flexDirection: 'row',
@@ -383,18 +392,21 @@ const styles = StyleSheet.create({
   },
   smallPill: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: theme.cardBackgroundSubtle,
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   smallPillActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   smallPillText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#3A3A3C',
+    color: theme.textSecondary,
   },
   smallPillTextActive: {
     color: '#FFFFFF',
@@ -404,7 +416,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
     paddingVertical: 14,
     borderRadius: 14,
     marginTop: 22,

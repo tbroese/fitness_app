@@ -31,6 +31,7 @@ export interface StreakState {
   lastCompletedDate?: string; // YYYY-MM-DD to enforce max 1 per day
   lastEvaluatedWeekId?: string; // e.g. "2026-W46"
   streakStatus: 'active' | 'at_risk' | 'reset';
+  statusMessage?: string;
 }
 
 export interface DwellSessionState {

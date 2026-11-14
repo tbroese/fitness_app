@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
 import { WorkoutSession } from '../../types/fitness';
+import { theme } from '../../constants/theme';
 
 export default function HistoryScreen() {
   const { workouts, streakState } = useFitness();
@@ -28,14 +29,14 @@ export default function HistoryScreen() {
     return (
       <View style={styles.workoutCard}>
         <View style={styles.iconContainer}>
-          <Ionicons name="barbell" size={20} color="#007AFF" />
+          <Ionicons name="barbell" size={20} color={theme.primaryLight} />
         </View>
 
         <View style={styles.details}>
           <View style={styles.rowBetween}>
             <Text style={styles.gymName}>{item.gymName}</Text>
             <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-circle" size={12} color="#34C759" />
+              <Ionicons name="checkmark-circle" size={12} color={theme.success} />
               <Text style={styles.verifiedText}>GPS Verified</Text>
             </View>
           </View>
@@ -46,11 +47,11 @@ export default function HistoryScreen() {
 
           <View style={styles.metaRow}>
             <View style={styles.metaPill}>
-              <Ionicons name="time-outline" size={12} color="#8E8E93" />
+              <Ionicons name="time-outline" size={12} color={theme.textTertiary} />
               <Text style={styles.metaText}>{item.durationMinutes} mins</Text>
             </View>
             <View style={styles.metaPill}>
-              <Ionicons name="calendar-outline" size={12} color="#8E8E93" />
+              <Ionicons name="calendar-outline" size={12} color={theme.textTertiary} />
               <Text style={styles.metaText}>{item.weekId}</Text>
             </View>
           </View>
@@ -81,7 +82,7 @@ export default function HistoryScreen() {
         {/* Workout List */}
         {workouts.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="barbell-outline" size={54} color="#C7C7CC" />
+            <Ionicons name="barbell-outline" size={54} color={theme.textTertiary} />
             <Text style={styles.emptyTitle}>No Workouts Logged Yet</Text>
             <Text style={styles.emptySubtitle}>
               When you arrive at your gym and stay for your workout, check-ins will automatically appear here!
@@ -103,7 +104,7 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: theme.background,
   },
   container: {
     flex: 1,
@@ -116,27 +117,27 @@ const styles = StyleSheet.create({
   },
   statBox: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.cardBackground,
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
     elevation: 2,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
   },
   statValue: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   statLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: theme.textSecondary,
     marginTop: 4,
   },
   listContent: {
@@ -145,17 +146,17 @@ const styles = StyleSheet.create({
   },
   workoutCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.cardBackground,
     borderRadius: 16,
     padding: 16,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
     elevation: 2,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
     alignItems: 'center',
     gap: 14,
   },
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#007AFF12',
+    backgroundColor: theme.primaryMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -178,25 +179,27 @@ const styles = StyleSheet.create({
   gymName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: theme.successMuted,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   verifiedText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#2E7D32',
+    color: theme.successLight,
   },
   dateTime: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: theme.textSecondary,
     marginTop: 4,
   },
   metaRow: {
@@ -208,14 +211,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: theme.cardBackgroundSubtle,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   metaText: {
     fontSize: 11,
-    color: '#636366',
+    color: theme.textSecondary,
     fontWeight: '500',
   },
   emptyContainer: {
@@ -227,12 +232,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
     marginTop: 14,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18,

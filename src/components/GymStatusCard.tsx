@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GymLocation, DwellSessionState } from '../types/fitness';
+import { theme } from '../constants/theme';
 
 interface GymStatusCardProps {
   gym: GymLocation | null;
@@ -29,14 +30,14 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
 
   const handleManualCheckIn = () => {
     const res = onManualCheckIn();
-    Alert.alert(res.success ? 'Success!' : 'Notice', res.message);
+    Alert.alert(res.success ? 'Logged!' : 'Notice', res.message);
   };
 
   if (!gym) {
     return (
       <View style={styles.card}>
         <View style={styles.emptyContainer}>
-          <Ionicons name="location-outline" size={40} color="#8E8E93" />
+          <Ionicons name="location-outline" size={40} color={theme.textTertiary} />
           <Text style={styles.emptyTitle}>No Gym Configured</Text>
           <Text style={styles.emptySub}>
             Set your gym location so the app can automatically detect workouts and track streaks.
@@ -54,7 +55,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
       <View style={styles.header}>
         <View style={styles.gymInfo}>
           <View style={styles.gymIcon}>
-            <Ionicons name="barbell" size={20} color="#007AFF" />
+            <Ionicons name="barbell" size={20} color={theme.primaryLight} />
           </View>
           <View>
             <Text style={styles.gymName}>{gym.name}</Text>
@@ -63,7 +64,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
         </View>
 
         <TouchableOpacity onPress={onOpenGymSettings} style={styles.editBtn}>
-          <Ionicons name="settings-outline" size={18} color="#8E8E93" />
+          <Ionicons name="settings-outline" size={18} color={theme.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -83,14 +84,14 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
             : 'Locating GPS...'}
         </Text>
         <TouchableOpacity onPress={onRefreshLocation} style={styles.refreshIcon}>
-          <Ionicons name="refresh" size={16} color="#007AFF" />
+          <Ionicons name="refresh" size={16} color={theme.primaryLight} />
         </TouchableOpacity>
       </View>
 
       {/* Dwell Timer / In-Progress Workout */}
       {dwellState.completedToday ? (
         <View style={styles.completedBanner}>
-          <Ionicons name="checkmark-done-circle" size={24} color="#34C759" />
+          <Ionicons name="checkmark-done-circle" size={24} color={theme.success} />
           <View style={{ flex: 1 }}>
             <Text style={styles.completedTitle}>Workout Completed Today!</Text>
             <Text style={styles.completedSub}>
@@ -115,7 +116,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
         </View>
       ) : (
         <View style={styles.dwellBoxIdle}>
-          <Ionicons name="navigate-outline" size={18} color="#8E8E93" />
+          <Ionicons name="navigate-outline" size={18} color={theme.textTertiary} />
           <Text style={styles.dwellIdleText}>
             Visit your gym for {dwellRequired}+ mins to automatically log your workout.
           </Text>
@@ -135,18 +136,18 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.cardBackground,
     borderRadius: 20,
     padding: 20,
     marginHorizontal: 16,
     marginVertical: 10,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -155,19 +156,19 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
     marginTop: 8,
   },
   emptySub: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginTop: 6,
     marginBottom: 16,
     paddingHorizontal: 20,
   },
   setupBtn: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
@@ -191,18 +192,18 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#007AFF15',
+    backgroundColor: theme.primaryMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
   gymName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   radiusText: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   editBtn: {
@@ -213,10 +214,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginTop: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: '#F9F9FB',
+    backgroundColor: theme.cardBackgroundSubtle,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   statusDot: {
     width: 10,
@@ -224,15 +227,15 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   statusDotInside: {
-    backgroundColor: '#34C759',
+    backgroundColor: theme.success,
   },
   statusDotOutside: {
-    backgroundColor: '#FF9500',
+    backgroundColor: theme.warning,
   },
   distanceText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#3A3A3C',
+    color: theme.textPrimary,
     flex: 1,
   },
   refreshIcon: {
@@ -242,28 +245,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: theme.successMuted,
     padding: 14,
     borderRadius: 14,
     marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   completedTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#2E7D32',
+    color: theme.successLight,
   },
   completedSub: {
     fontSize: 12,
-    color: '#388E3C',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   dwellBox: {
-    backgroundColor: '#F0F8FF',
+    backgroundColor: theme.primaryMuted,
     borderRadius: 14,
     padding: 14,
     marginTop: 16,
     borderWidth: 1,
-    borderColor: '#D0E6FF',
+    borderColor: 'rgba(59, 130, 246, 0.3)',
   },
   dwellHeader: {
     flexDirection: 'row',
@@ -273,41 +278,43 @@ const styles = StyleSheet.create({
   dwellTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#007AFF',
+    color: theme.primaryLight,
   },
   dwellTime: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#007AFF',
+    color: theme.primaryLight,
   },
   dwellProgressBg: {
     height: 8,
-    backgroundColor: '#D0E6FF',
+    backgroundColor: theme.cardBackgroundSubtle,
     borderRadius: 4,
     overflow: 'hidden',
     marginVertical: 8,
   },
   dwellProgressFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
     borderRadius: 4,
   },
   dwellSub: {
     fontSize: 11,
-    color: '#607D8B',
+    color: theme.textSecondary,
   },
   dwellBoxIdle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#F9F9FB',
+    backgroundColor: theme.cardBackgroundSubtle,
     borderRadius: 12,
     padding: 12,
     marginTop: 14,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   dwellIdleText: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: theme.textSecondary,
     flex: 1,
   },
   checkInBtn: {
@@ -315,7 +322,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: theme.primary,
     paddingVertical: 12,
     borderRadius: 12,
     marginTop: 14,

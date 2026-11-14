@@ -15,6 +15,7 @@ import { StreakCard } from '../../components/StreakCard';
 import { WeeklyProgressCard } from '../../components/WeeklyProgressCard';
 import { GymStatusCard } from '../../components/GymStatusCard';
 import { GpsSimulatorModal } from '../../components/GpsSimulatorModal';
+import { theme } from '../../constants/theme';
 
 export default function DashboardScreen() {
   const {
@@ -42,13 +43,19 @@ export default function DashboardScreen() {
     day: 'numeric',
   });
 
+  const isReset = streakState.streakStatus === 'reset';
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primaryLight}
+          />
         }
       >
         {/* Top Header */}
@@ -62,7 +69,7 @@ export default function DashboardScreen() {
             style={styles.simBadge}
             onPress={() => setSimulatorVisible(true)}
           >
-            <Ionicons name="flask" size={16} color="#7C3AED" />
+            <Ionicons name="flask" size={16} color="#C084FC" />
             <Text style={styles.simBadgeText}>Simulator</Text>
           </TouchableOpacity>
         </View>
@@ -78,6 +85,7 @@ export default function DashboardScreen() {
           weeklyGoal={preferences.weeklyGoal}
           currentWeekWorkouts={streakState.currentWeekWorkouts}
           workouts={workouts}
+          isReset={isReset}
         />
 
         {/* 3. Gym Geofence & Dwell Status */}
@@ -92,9 +100,9 @@ export default function DashboardScreen() {
 
         {/* Info Banner on streak mechanics */}
         <View style={styles.infoBox}>
-          <Ionicons name="information-circle-outline" size={20} color="#007AFF" />
+          <Ionicons name="information-circle-outline" size={20} color={theme.primaryLight} />
           <Text style={styles.infoText}>
-            Streaks increment with each gym visit. If you do not hit your target of {preferences.weeklyGoal} workouts this week, your streak resets to 0.
+            Streaks increment with each gym visit. If there are fewer days left in the week than needed to hit your target of {preferences.weeklyGoal} workouts, your streak resets and starts again next week.
           </Text>
         </View>
       </ScrollView>
@@ -111,7 +119,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: theme.background,
   },
   container: {
     flex: 1,
@@ -130,47 +138,47 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#8E8E93',
+    color: theme.textSecondary,
     letterSpacing: 1,
   },
   welcomeText: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
     marginTop: 2,
   },
   simBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: 'rgba(192, 132, 252, 0.15)',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E9D5FF',
+    borderColor: 'rgba(192, 132, 252, 0.3)',
   },
   simBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#7C3AED',
+    color: '#C084FC',
   },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: theme.cardBackground,
     marginHorizontal: 16,
     marginTop: 10,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: theme.cardBorder,
   },
   infoText: {
     fontSize: 12,
-    color: '#1E40AF',
-    lineHeight: 17,
+    color: theme.textSecondary,
+    lineHeight: 18,
     flex: 1,
     fontWeight: '500',
   },

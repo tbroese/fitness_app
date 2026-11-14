@@ -1,40 +1,47 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { theme } from '../../constants/theme';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarPosition: 'top',
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.tabBarInactive,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopColor: '#E5E5EA',
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6,
+          backgroundColor: theme.tabBarBackground,
+          borderBottomColor: theme.tabBarBorder,
+          borderBottomWidth: 1,
+          paddingTop: Math.max(insets.top, 12),
+          height: 56 + Math.max(insets.top, 12),
+          elevation: 4,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.35,
+          shadowRadius: 6,
         },
-        headerStyle: {
-          backgroundColor: '#FFFFFF',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+          marginBottom: 6,
         },
-        headerTitleStyle: {
-          fontWeight: '800',
-          fontSize: 18,
-          color: '#1C1C1E',
-        },
+        headerShown: false,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Streak',
-          headerTitle: 'Fitness Streak',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'flame' : 'flame-outline'}
-              size={size}
-              color={typeof color === 'string' ? color : '#007AFF'}
+              size={size || 20}
+              color={typeof color === 'string' ? color : theme.primary}
             />
           ),
         }}
@@ -43,12 +50,11 @@ export default function TabLayout() {
         name="history"
         options={{
           title: 'Workouts',
-          headerTitle: 'Workout Log',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'calendar' : 'calendar-outline'}
-              size={size}
-              color={typeof color === 'string' ? color : '#007AFF'}
+              size={size || 20}
+              color={typeof color === 'string' ? color : theme.primary}
             />
           ),
         }}
@@ -57,12 +63,11 @@ export default function TabLayout() {
         name="goal"
         options={{
           title: 'Goal & Gym',
-          headerTitle: 'Goal & Gym Setup',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'options' : 'options-outline'}
-              size={size}
-              color={typeof color === 'string' ? color : '#007AFF'}
+              size={size || 20}
+              color={typeof color === 'string' ? color : theme.primary}
             />
           ),
         }}

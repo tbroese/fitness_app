@@ -1,6 +1,5 @@
 const assert = require('assert');
 
-// 1. ISO Week calculation
 function getIsoWeekNumber(d = new Date()) {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const dayNum = date.getUTCDay() || 7;
@@ -15,109 +14,111 @@ function getIsoWeekId(date = new Date()) {
   return `${year}-W${String(week).padStart(2, '0')}`;
 }
 
-function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371e3;
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return Math.round(R * c);
+function formatDateToYYYYMMDD(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
+
+function getAvailableWorkoutDaysRemaining(date = new Date(), hasWorkedOutToday = false) {
+  const dayOfWeek = date.getDay(); // 0 (Sun) to 6 (Sat)
+  const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+  const futureDaysInWeek = 7 - isoDay;
+  return hasWorkedOutToday ? futureDaysInWeek : futureDaysInWeek + 1;
+}
+
+const STREAK_LOST_MESSAGE = 'Streak lost. Your new streak will start next week.';
 
 function evaluateWeeklyReset(currentState, preferences, workouts, currentDate = new Date()) {
   const currentWeekId = getIsoWeekId(currentDate);
+  const todayStr = formatDateToYYYYMMDD(currentDate);
+  const workedOutToday = workouts.some((w) => w.dateString === todayStr);
 
-  if (!currentState.lastEvaluatedWeekId) {
-    const workoutsThisWeek = workouts.filter((w) => w.weekId === currentWeekId).length;
-    return {
-      ...currentState,
-      currentWeekWorkouts: workoutsThisWeek,
-      lastEvaluatedWeekId: currentWeekId,
-      streakStatus: workoutsThisWeek >= preferences.weeklyGoal ? 'active' : 'at_risk',
-    };
-  }
+  let newStreak = currentState.currentStreak;
+  let isReset = false;
+  let statusMessage;
 
-  if (currentState.lastEvaluatedWeekId !== currentWeekId) {
-    const lastEvaluatedWeek = currentState.lastEvaluatedWeekId;
-    const priorWeekWorkouts = workouts.filter((w) => w.weekId === lastEvaluatedWeek).length;
-
-    let newStreak = currentState.currentStreak;
-    let isReset = false;
-
+  // 1. Check week boundary transition
+  if (currentState.lastEvaluatedWeekId && currentState.lastEvaluatedWeekId !== currentWeekId) {
+    const priorWeekWorkouts = workouts.filter((w) => w.weekId === currentState.lastEvaluatedWeekId).length;
     if (priorWeekWorkouts < preferences.weeklyGoal) {
       newStreak = 0;
       isReset = true;
     }
-
-    const currentWeekWorkouts = workouts.filter((w) => w.weekId === currentWeekId).length;
-
-    return {
-      ...currentState,
-      currentStreak: newStreak,
-      currentWeekWorkouts,
-      lastEvaluatedWeekId: currentWeekId,
-      streakStatus: isReset ? 'reset' : 'active',
-    };
   }
 
   const currentWeekWorkouts = workouts.filter((w) => w.weekId === currentWeekId).length;
+
+  // 2. Mid-week feasibility check
+  if (currentWeekWorkouts < preferences.weeklyGoal) {
+    const needed = preferences.weeklyGoal - currentWeekWorkouts;
+    const daysAvailable = getAvailableWorkoutDaysRemaining(currentDate, workedOutToday);
+
+    if (daysAvailable < needed) {
+      newStreak = 0;
+      isReset = true;
+      statusMessage = STREAK_LOST_MESSAGE;
+    }
+  }
+
+  let streakStatus = 'active';
+  if (isReset || (currentState.streakStatus === 'reset' && currentState.lastEvaluatedWeekId === currentWeekId)) {
+    streakStatus = 'reset';
+    newStreak = 0;
+    statusMessage = STREAK_LOST_MESSAGE;
+  } else if (currentWeekWorkouts >= preferences.weeklyGoal) {
+    streakStatus = 'active';
+  } else {
+    streakStatus = 'at_risk';
+  }
+
   return {
     ...currentState,
+    currentStreak: newStreak,
     currentWeekWorkouts,
-    streakStatus: currentWeekWorkouts >= preferences.weeklyGoal ? 'active' : 'at_risk',
+    lastEvaluatedWeekId: currentWeekId,
+    streakStatus,
+    statusMessage,
   };
 }
 
-console.log('--- RUNNING FITNESS STREAK & GPS TESTS ---');
+console.log('--- TESTING MID-WEEK STREAK RESET & EXPIRY ---');
 
-// Test 1: Distance Calculation
-const gymLat = 37.7749;
-const gymLon = -122.4194;
-// Point ~100m away
-const nearLat = 37.7758;
-const nearLon = -122.4194;
-const dist = calculateDistanceMeters(gymLat, gymLon, nearLat, nearLon);
-console.log(`Test 1 (GPS Distance): Distance is ${dist}m (expected ~100m)`);
-assert(dist > 80 && dist < 120, 'Distance should be approximately 100 meters');
-
-// Test 2: Streak Reset when Goal is Missed
+// Goal: 4 workouts/week
 const prefs = { weeklyGoal: 4 };
-const initialStreakState = {
-  currentStreak: 12, // 12 workouts streak
+
+// Test A: Today is Saturday (2026-11-14).
+// In Week 46, user has completed only 1 workout (e.g. Wednesday).
+// Remaining needed = 4 - 1 = 3 workouts.
+// Saturday (today) + Sunday = 2 days available.
+// 2 days available < 3 needed -> STREAK MUST RESET IMMEDIATELY!
+const satDate = new Date('2026-11-14T12:00:00'); // Saturday
+const activeStreakState = {
+  currentStreak: 10,
   bestStreak: 15,
-  currentWeekWorkouts: 2,
-  lastEvaluatedWeekId: '2026-W45',
+  currentWeekWorkouts: 1,
+  lastEvaluatedWeekId: '2026-W46',
+  streakStatus: 'active',
 };
-
-// Only 2 workouts logged in Week 45 (< goal of 4)
-const priorWorkouts = [
-  { id: '1', weekId: '2026-W45', dateString: '2026-11-03' },
-  { id: '2', weekId: '2026-W45', dateString: '2026-11-05' },
+const weekWorkouts = [
+  { id: 'w1', weekId: '2026-W46', dateString: '2026-11-11' }, // Wed
 ];
 
-// Transition to Week 46 (e.g. 2026-11-14)
-const evalDate = new Date('2026-11-14T10:00:00Z');
-const evaluatedState = evaluateWeeklyReset(initialStreakState, prefs, priorWorkouts, evalDate);
+const resA = evaluateWeeklyReset(activeStreakState, prefs, weekWorkouts, satDate);
+console.log('Result A (Saturday with 1 workout, goal 4):', resA.streakStatus, 'Streak:', resA.currentStreak);
+assert.strictEqual(resA.currentStreak, 0, 'Streak should reset to 0 because less days remain than needed');
+assert.strictEqual(resA.streakStatus, 'reset');
+assert.strictEqual(resA.statusMessage, 'Streak lost. Your new streak will start next week.');
 
-console.log(`Test 2 (Weekly Reset on Missed Goal): Streak reset to ${evaluatedState.currentStreak}`);
-assert.strictEqual(evaluatedState.currentStreak, 0, 'Streak should reset to 0 when prior week workouts < goal');
-assert.strictEqual(evaluatedState.streakStatus, 'reset');
+// Test B: Today is Tuesday (2026-11-10).
+// In Week 46, user has 1 workout (Mon).
+// Goal is 4, needed = 3. Days available (Tue, Wed, Thu, Fri, Sat, Sun) = 6.
+// 6 >= 3 -> Streak must NOT reset!
+const tueDate = new Date('2026-11-10T12:00:00'); // Tuesday
+const resB = evaluateWeeklyReset(activeStreakState, prefs, weekWorkouts, tueDate);
+console.log('Result B (Tuesday with 1 workout, goal 4):', resB.streakStatus, 'Streak:', resB.currentStreak);
+assert.strictEqual(resB.currentStreak, 10, 'Streak should NOT reset because enough days remain');
+assert.strictEqual(resB.streakStatus, 'at_risk');
 
-// Test 3: Streak Preserved when Goal is Met
-const priorWorkoutsMet = [
-  { id: '1', weekId: '2026-W45', dateString: '2026-11-03' },
-  { id: '2', weekId: '2026-W45', dateString: '2026-11-04' },
-  { id: '3', weekId: '2026-W45', dateString: '2026-11-06' },
-  { id: '4', weekId: '2026-W45', dateString: '2026-11-07' },
-];
-const evaluatedMetState = evaluateWeeklyReset(initialStreakState, prefs, priorWorkoutsMet, evalDate);
-console.log(`Test 3 (Weekly Goal Met): Streak preserved at ${evaluatedMetState.currentStreak}`);
-assert.strictEqual(evaluatedMetState.currentStreak, 12, 'Streak should remain 12 when goal met');
-
-console.log('✅ ALL TESTS PASSED SUCCESSFULLY!');
+console.log('✅ ALL MID-WEEK RESET TESTS PASSED!');

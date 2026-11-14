@@ -38,6 +38,16 @@ export function getDaysRemainingInWeek(date: Date = new Date()): number {
   return Math.max(0, 7 - isoDay);
 }
 
+export function getAvailableWorkoutDaysRemaining(
+  date: Date = new Date(),
+  hasWorkedOutToday: boolean = false
+): number {
+  const dayOfWeek = date.getDay(); // 0 (Sun) to 6 (Sat)
+  const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+  const futureDaysInWeek = 7 - isoDay;
+  return hasWorkedOutToday ? futureDaysInWeek : futureDaysInWeek + 1;
+}
+
 export function getWeekStartAndEnd(date: Date = new Date()): { start: Date; end: Date } {
   const d = new Date(date);
   const day = d.getDay();

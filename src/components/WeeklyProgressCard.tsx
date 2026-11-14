@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WorkoutSession } from '../types/fitness';
+import { theme } from '../constants/theme';
 import {
   getWeekStartAndEnd,
   formatDateToYYYYMMDD,
@@ -13,12 +14,14 @@ interface WeeklyProgressCardProps {
   weeklyGoal: number;
   currentWeekWorkouts: number;
   workouts: WorkoutSession[];
+  isReset?: boolean;
 }
 
 export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   weeklyGoal,
   currentWeekWorkouts,
   workouts,
+  isReset = false,
 }) => {
   const { start } = getWeekStartAndEnd(new Date());
   const daysRemaining = getDaysRemainingInWeek(new Date());
@@ -47,7 +50,9 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
         <View>
           <Text style={styles.title}>Weekly Target</Text>
           <Text style={styles.subTitle}>
-            {needed === 0
+            {isReset
+              ? 'Streak lost for this week. Goal restarts next week.'
+              : needed === 0
               ? '🎉 Goal achieved for this week!'
               : `${needed} more workout${needed > 1 ? 's' : ''} needed to avoid streak reset`}
           </Text>
@@ -60,7 +65,13 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
 
       {/* Progress Bar */}
       <View style={styles.progressBarBackground}>
-        <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+        <View
+          style={[
+            styles.progressBarFill,
+            { width: `${progressPercent}%` },
+            isReset && { backgroundColor: theme.danger },
+          ]}
+        />
       </View>
 
       {/* Week Day Pills */}
@@ -103,7 +114,7 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
 
       {/* Days left footer */}
       <View style={styles.footerRow}>
-        <Ionicons name="time-outline" size={14} color="#8E8E93" />
+        <Ionicons name="time-outline" size={14} color={theme.textTertiary} />
         <Text style={styles.footerText}>
           {daysRemaining === 0 ? 'Last day of the week!' : `${daysRemaining} days remaining in this week`}
         </Text>
@@ -114,18 +125,18 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.cardBackground,
     borderRadius: 20,
     padding: 20,
     marginHorizontal: 16,
     marginVertical: 10,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
   },
   header: {
     flexDirection: 'row',
@@ -136,42 +147,47 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   subTitle: {
     fontSize: 13,
-    color: '#636366',
+    color: theme.textSecondary,
     marginTop: 4,
     maxWidth: 220,
+    lineHeight: 18,
   },
   fractionBox: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    backgroundColor: '#007AFF12',
+    backgroundColor: theme.primaryMuted,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
   },
   fractionCurrent: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#007AFF',
+    color: theme.primaryLight,
   },
   fractionTotal: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#007AFF',
+    color: theme.primaryLight,
   },
   progressBarBackground: {
     height: 10,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: theme.cardBackgroundSubtle,
     borderRadius: 5,
     overflow: 'hidden',
-    marginVertical: 8,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
     borderRadius: 5,
   },
   daysRow: {
@@ -188,37 +204,37 @@ const styles = StyleSheet.create({
   dayText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: theme.textSecondary,
   },
   dayTextToday: {
-    color: '#007AFF',
+    color: theme.primaryLight,
     fontWeight: '800',
   },
   dayCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: theme.cardBackgroundSubtle,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: theme.cardBorder,
   },
   dayCircleCompleted: {
-    backgroundColor: '#34C759',
-    borderColor: '#34C759',
+    backgroundColor: theme.success,
+    borderColor: theme.success,
   },
   dayCircleToday: {
-    borderColor: '#007AFF',
+    borderColor: theme.primaryLight,
     borderWidth: 2,
   },
   dayNumber: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: theme.textSecondary,
   },
   dayNumberToday: {
-    color: '#007AFF',
+    color: theme.primaryLight,
     fontWeight: '700',
   },
   footerRow: {
@@ -228,11 +244,11 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#F2F2F7',
+    borderTopColor: theme.cardBorder,
   },
   footerText: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: theme.textTertiary,
     fontWeight: '500',
   },
 });

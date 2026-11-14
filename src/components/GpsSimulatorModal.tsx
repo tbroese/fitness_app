@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../context/FitnessContext';
+import { theme } from '../constants/theme';
 
 interface GpsSimulatorModalProps {
   visible: boolean;
@@ -35,7 +36,7 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
       metGoal ? 'Weekly Goal Met!' : 'Weekly Goal Missed!',
       metGoal
         ? `Simulated prior week with ${workouts} workouts (>= goal ${preferences.weeklyGoal}). Your streak was preserved!`
-        : `Simulated prior week with only ${workouts} workouts (< goal ${preferences.weeklyGoal}). Your streak has reset to 0!`
+        : `Simulated prior week with only ${workouts} workouts (< goal ${preferences.weeklyGoal}). Streak lost. Your new streak will start next week.`
     );
   };
 
@@ -67,7 +68,7 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
               <Text style={styles.subtitle}>Test geofencing, dwell time, and weekly resets</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={22} color="#8E8E93" />
+              <Ionicons name="close" size={22} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -113,8 +114,8 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
                   style={[styles.btn, styles.btnOutline, { flex: 1 }]}
                   onPress={() => simulateDwellProgress(10)}
                 >
-                  <Ionicons name="timer-outline" size={16} color="#007AFF" />
-                  <Text style={styles.btnOutlineText}>+10 Mins Dwell</Text>
+                  <Ionicons name="timer-outline" size={16} color={theme.primaryLight} />
+                  <Text style={styles.btnOutlineText}>+10 Mins</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -122,7 +123,7 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
                   onPress={() => simulateDwellProgress(preferences.dwellDurationMinutes || 20)}
                 >
                   <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-                  <Text style={styles.btnText}>Trigger Complete</Text>
+                  <Text style={styles.btnText}>Complete Dwell</Text>
                 </TouchableOpacity>
               </View>
 
@@ -130,7 +131,7 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
                 style={[styles.btn, styles.btnSecondary]}
                 onPress={() => simulateLeaveGym()}
               >
-                <Ionicons name="exit-outline" size={18} color="#3A3A3C" />
+                <Ionicons name="exit-outline" size={18} color={theme.textPrimary} />
                 <Text style={styles.btnSecondaryText}>Simulate Leaving Gym (2.5km away)</Text>
               </TouchableOpacity>
             </View>
@@ -139,7 +140,7 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>2. TEST WEEKLY RESET LOGIC</Text>
               <Text style={styles.sectionDesc}>
-                Simulate transition from last week to test if streak resets when workouts &lt; weekly goal ({preferences.weeklyGoal}).
+                Simulate missed goal to verify: "Streak lost. Your new streak will start next week."
               </Text>
 
               <TouchableOpacity
@@ -148,7 +149,7 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
               >
                 <Ionicons name="alert-circle" size={18} color="#FFFFFF" />
                 <Text style={styles.btnText}>
-                  Test Prior Week MISSED (Resets Streak to 0)
+                  Test Prior Week MISSED (Streak Resets to 0)
                 </Text>
               </TouchableOpacity>
 
@@ -169,7 +170,7 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
                 style={[styles.btn, styles.btnDanger]}
                 onPress={handleResetData}
               >
-                <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+                <Ionicons name="trash-outline" size={18} color={theme.danger} />
                 <Text style={styles.btnDangerText}>Reset All Data to Defaults</Text>
               </TouchableOpacity>
             </View>
@@ -183,15 +184,17 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.cardBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '85%',
     paddingBottom: 30,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   header: {
     flexDirection: 'row',
@@ -199,22 +202,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: theme.cardBorder,
   },
   title: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
   },
   subtitle: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   closeBtn: {
     padding: 6,
     borderRadius: 16,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: theme.cardBackgroundSubtle,
   },
   body: {
     padding: 20,
@@ -225,21 +228,23 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#8E8E93',
+    color: theme.textSecondary,
     letterSpacing: 1,
     marginBottom: 10,
   },
   sectionDesc: {
     fontSize: 12,
-    color: '#636366',
+    color: theme.textTertiary,
     marginBottom: 10,
     lineHeight: 16,
   },
   stateGrid: {
     flexDirection: 'row',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: theme.cardBackgroundSubtle,
     borderRadius: 14,
     padding: 12,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   stateItem: {
     flex: 1,
@@ -248,12 +253,12 @@ const styles = StyleSheet.create({
   stateLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: theme.textSecondary,
   },
   stateValue: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#1C1C1E',
+    color: theme.textPrimary,
     marginTop: 4,
   },
   btn: {
@@ -271,26 +276,28 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   btnBlue: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
   },
   btnGreen: {
-    backgroundColor: '#34C759',
+    backgroundColor: theme.success,
   },
   btnOrange: {
-    backgroundColor: '#FF9500',
+    backgroundColor: theme.warning,
   },
   btnSecondary: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
   },
   btnOutline: {
     borderWidth: 1,
-    borderColor: '#007AFF',
-    backgroundColor: '#FFFFFF',
+    borderColor: theme.primary,
+    backgroundColor: theme.primaryMuted,
   },
   btnDanger: {
-    backgroundColor: '#FFF2F2',
+    backgroundColor: theme.dangerMuted,
     borderWidth: 1,
-    borderColor: '#FFD2D2',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   btnText: {
     color: '#FFFFFF',
@@ -298,17 +305,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   btnSecondaryText: {
-    color: '#3A3A3C',
+    color: theme.textPrimary,
     fontWeight: '600',
     fontSize: 13,
   },
   btnOutlineText: {
-    color: '#007AFF',
+    color: theme.primaryLight,
     fontWeight: '700',
     fontSize: 13,
   },
   btnDangerText: {
-    color: '#FF3B30',
+    color: theme.danger,
     fontWeight: '700',
     fontSize: 13,
   },

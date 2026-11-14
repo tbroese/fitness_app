@@ -16,6 +16,7 @@ import { WeeklyProgressCard } from '../../components/WeeklyProgressCard';
 import { GymStatusCard } from '../../components/GymStatusCard';
 import { GpsSimulatorModal } from '../../components/GpsSimulatorModal';
 import { FirstTimeNameModal } from '../../components/FirstTimeNameModal';
+import { ENABLE_DEBUG_SIMULATOR } from '../../constants/config';
 import { theme } from '../../constants/theme';
 
 export default function DashboardScreen() {
@@ -80,13 +81,15 @@ export default function DashboardScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.simBadge}
-            onPress={() => setSimulatorVisible(true)}
-          >
-            <Ionicons name="flask" size={16} color="#C084FC" />
-            <Text style={styles.simBadgeText}>Simulator</Text>
-          </TouchableOpacity>
+          {ENABLE_DEBUG_SIMULATOR && (
+            <TouchableOpacity
+              style={styles.simBadge}
+              onPress={() => setSimulatorVisible(true)}
+            >
+              <Ionicons name="flask" size={16} color="#C084FC" />
+              <Text style={styles.simBadgeText}>Simulator</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* 1. Visit Streak Card */}
@@ -142,10 +145,12 @@ export default function DashboardScreen() {
       />
 
       {/* Simulator Modal for testing */}
-      <GpsSimulatorModal
-        visible={simulatorVisible}
-        onClose={() => setSimulatorVisible(false)}
-      />
+      {ENABLE_DEBUG_SIMULATOR && (
+        <GpsSimulatorModal
+          visible={simulatorVisible}
+          onClose={() => setSimulatorVisible(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }

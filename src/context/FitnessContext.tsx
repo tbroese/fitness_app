@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import {
+  UserProfile,
   UserPreferences,
   WorkoutSession,
   StreakState,
@@ -10,12 +12,13 @@ import {
 } from '../types/fitness';
 import {
   storageService,
+  createDefaultUserProfile,
   DEFAULT_PREFERENCES,
   DEFAULT_STREAK_STATE,
+  DEFAULT_DWELL_SESSION,
 } from '../services/storageService';
 import {
   evaluateWeeklyReset,
-  recordCompletedWorkout,
 } from '../services/streakManager';
 import {
   calculateDistanceMeters,
@@ -25,12 +28,14 @@ import {
 import { formatDateToYYYYMMDD, getIsoWeekId } from '../utils/dateUtils';
 
 interface FitnessContextType {
+  userProfile: UserProfile;
   preferences: UserPreferences;
   streakState: StreakState;
   workouts: WorkoutSession[];
   dwellState: DwellSessionState;
   currentDistanceMeters: number | null;
   isLoading: boolean;
+  updateUserProfile: (fullName: string) => Promise<void>;
   setWeeklyGoal: (goal: number) => Promise<void>;
   scheduleGoalForMonday: (goal: number) => Promise<void>;
   cancelPendingGoal: () => Promise<void>;
@@ -46,35 +51,38 @@ interface FitnessContextType {
 const FitnessContext = createContext<FitnessContextType | undefined>(undefined);
 
 export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [userProfile, setUserProfile] = useState<UserProfile>(createDefaultUserProfile);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [streakState, setStreakState] = useState<StreakState>(DEFAULT_STREAK_STATE);
   const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
   const [currentDistanceMeters, setCurrentDistanceMeters] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [dwellState, setDwellState] = useState<DwellSessionState>({
-    isDwelling: false,
-    minutesDwelling: 0,
-    completedToday: false,
-  });
+  const [dwellState, setDwellState] = useState<DwellSessionState>(DEFAULT_DWELL_SESSION);
 
   const preferencesRef = useRef(preferences);
   preferencesRef.current = preferences;
 
-  // Load state and perform weekly evaluation
+  const userProfileRef = useRef(userProfile);
+  userProfileRef.current = userProfile;
+
+  // Load state, profile, persisted dwell session, and perform weekly evaluation
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const savedPrefs = await storageService.getPreferences();
+      const [savedProfile, savedPrefs, savedWorkouts, savedStreak] = await Promise.all([
+        storageService.getUserProfile(),
+        storageService.getPreferences(),
+        storageService.getWorkouts(),
+        storageService.getStreakState(),
+      ]);
+
       // Ensure defaults & locked values
       savedPrefs.dwellDurationMinutes = FIXED_DWELL_MINUTES;
       if (savedPrefs.gymLocation) {
         savedPrefs.gymLocation.dwellMinutesRequired = FIXED_DWELL_MINUTES;
         savedPrefs.gymLocation.radiusMeters = DEFAULT_GEOFENCE_RADIUS_METERS;
       }
-
-      const savedWorkouts = await storageService.getWorkouts();
-      const savedStreak = await storageService.getStreakState();
 
       const currentWeekId = getIsoWeekId(new Date());
 
@@ -87,6 +95,11 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
 
+      // Attach userId to streakState if missing
+      if (!savedStreak.userId) {
+        savedStreak.userId = savedProfile.id;
+      }
+
       // Check weekly reset
       const evaluatedStreak = evaluateWeeklyReset(
         savedStreak,
@@ -94,15 +107,16 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         savedWorkouts,
         new Date()
       );
-
-      setPreferences(savedPrefs);
-      setWorkouts(savedWorkouts);
-      setStreakState(evaluatedStreak);
       await storageService.saveStreakState(evaluatedStreak);
 
-      const todayString = formatDateToYYYYMMDD(new Date());
-      const hasCompletedToday = savedWorkouts.some((w) => w.dateString === todayString);
-      setDwellState((prev) => ({ ...prev, completedToday: hasCompletedToday }));
+      // Evaluate any persisted background dwell session
+      const dwellEval = await storageService.evaluatePersistedDwellSession();
+
+      setUserProfile(savedProfile);
+      setPreferences(savedPrefs);
+      setWorkouts(dwellEval.workouts);
+      setStreakState(dwellEval.streakState);
+      setDwellState(dwellEval.dwellSession);
     } catch (e) {
       console.error('Failed to load initial fitness data', e);
     } finally {
@@ -113,6 +127,43 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Save user's Full Name locally on device
+  const updateUserProfile = async (fullName: string) => {
+    const trimmed = fullName.trim();
+    const updatedProfile: UserProfile = {
+      ...userProfile,
+      fullName: trimmed,
+      hasCompletedOnboarding: Boolean(trimmed),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const saved = await storageService.saveUserProfile(updatedProfile);
+    setUserProfile(saved);
+  };
+
+  // Helper to apply GPS proximity check and persist dwell state to AsyncStorage
+  const applyProximityDistance = useCallback(async (distance: number, gym: GymLocation) => {
+    setCurrentDistanceMeters(distance);
+    const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
+
+    if (distance <= radius) {
+      await storageService.handleBackgroundGeofenceEnter(gym.name);
+      const evalResult = await storageService.evaluatePersistedDwellSession();
+      setDwellState(evalResult.dwellSession);
+      setStreakState(evalResult.streakState);
+      setWorkouts(evalResult.workouts);
+    } else {
+      const exitedSession = await storageService.handleBackgroundGeofenceExit();
+      const [latestStreak, latestWorkouts] = await Promise.all([
+        storageService.getStreakState(),
+        storageService.getWorkouts(),
+      ]);
+      setDwellState(exitedSession);
+      setStreakState(latestStreak);
+      setWorkouts(latestWorkouts);
+    }
+  }, []);
 
   // Check current GPS location against gym
   const refreshLocation = useCallback(async () => {
@@ -127,40 +178,31 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       gym.latitude,
       gym.longitude
     );
-    setCurrentDistanceMeters(distance);
+    await applyProximityDistance(distance, gym);
+  }, [applyProximityDistance]);
 
-    const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
+  // Listen to AppState so when user unlocks phone or reopens app, persisted dwell time & background events sync immediately
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        const evalResult = await storageService.evaluatePersistedDwellSession();
+        setDwellState(evalResult.dwellSession);
+        setStreakState(evalResult.streakState);
+        setWorkouts(evalResult.workouts);
+        refreshLocation();
+      }
+    });
 
-    // If inside perimeter (300m)
-    if (distance <= radius) {
-      setDwellState((prev) => {
-        if (!prev.isDwelling) {
-          return {
-            ...prev,
-            isDwelling: true,
-            enteredAt: new Date().toISOString(),
-            minutesDwelling: 0,
-            gymName: gym.name,
-          };
-        }
-        return prev;
-      });
-    } else {
-      setDwellState((prev) => ({
-        ...prev,
-        isDwelling: false,
-        minutesDwelling: 0,
-        enteredAt: undefined,
-      }));
-    }
-  }, []);
+    return () => {
+      subscription.remove();
+    };
+  }, [refreshLocation]);
 
   // Continuous live GPS watching when app is active
   useEffect(() => {
     let sub: any = null;
     let isMounted = true;
 
-    // Initial check right away
     refreshLocation();
 
     if (preferences.gymLocation) {
@@ -175,30 +217,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           gym.latitude,
           gym.longitude
         );
-        setCurrentDistanceMeters(distance);
-
-        const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
-        if (distance <= radius) {
-          setDwellState((prev) => {
-            if (!prev.isDwelling) {
-              return {
-                ...prev,
-                isDwelling: true,
-                enteredAt: new Date().toISOString(),
-                minutesDwelling: 0,
-                gymName: gym.name,
-              };
-            }
-            return prev;
-          });
-        } else {
-          setDwellState((prev) => ({
-            ...prev,
-            isDwelling: false,
-            minutesDwelling: 0,
-            enteredAt: undefined,
-          }));
-        }
+        applyProximityDistance(distance, gym);
       }).then((subscription) => {
         if (isMounted) {
           sub = subscription;
@@ -212,81 +231,27 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       isMounted = false;
       if (sub && sub.remove) sub.remove();
     };
-  }, [preferences.gymLocation, refreshLocation]);
+  }, [preferences.gymLocation, refreshLocation, applyProximityDistance]);
 
-  // Record a completed workout (only called when GPS dwells for full 15 minutes)
-  const completeWorkout = useCallback(
-    async (gymName: string, workoutDate: Date = new Date(), duration: number = 15) => {
-      const result = recordCompletedWorkout(
-        streakState,
-        preferences,
-        workouts,
-        gymName,
-        workoutDate,
-        duration
-      );
-
-      if (result.success && result.newWorkout) {
-        setStreakState(result.updatedState);
-        setWorkouts(result.updatedWorkouts);
-        setDwellState((prev) => ({
-          ...prev,
-          completedToday: true,
-          minutesDwelling: FIXED_DWELL_MINUTES,
-          isDwelling: false,
-        }));
-        await storageService.saveStreakState(result.updatedState);
-        await storageService.saveWorkouts(result.updatedWorkouts);
-      }
-
-      return result;
-    },
-    [streakState, preferences, workouts]
-  );
-
-  // Live real-time dwell time counter
-  // Increments minutesDwelling in real time while inside gym perimeter
+  // Live real-time dwell time counter — continues tracking past 15 minutes for as long as user remains at the gym!
   useEffect(() => {
-    if (!dwellState.isDwelling || !dwellState.enteredAt || dwellState.completedToday) {
+    if (!dwellState.isDwelling || !dwellState.enteredAt) {
       return;
     }
 
-    const interval = setInterval(() => {
-      if (!dwellState.enteredAt) return;
-      const elapsedMs = Date.now() - new Date(dwellState.enteredAt).getTime();
-      const elapsedMins = Math.floor(elapsedMs / (1000 * 60));
-
-      if (elapsedMins !== dwellState.minutesDwelling) {
-        setDwellState((prev) => ({
-          ...prev,
-          minutesDwelling: elapsedMins,
-        }));
-      }
-
-      // Automatically complete workout when reaching 15 minutes!
-      if (elapsedMins >= FIXED_DWELL_MINUTES && !dwellState.completedToday) {
-        completeWorkout(
-          dwellState.gymName || preferences.gymLocation?.name || 'My Gym',
-          new Date(),
-          Math.max(15, elapsedMins)
-        );
-      }
+    const interval = setInterval(async () => {
+      const evalResult = await storageService.evaluatePersistedDwellSession();
+      setDwellState(evalResult.dwellSession);
+      setStreakState(evalResult.streakState);
+      setWorkouts(evalResult.workouts);
     }, 5000); // Ticks every 5 seconds
 
     return () => clearInterval(interval);
-  }, [
-    dwellState.isDwelling,
-    dwellState.enteredAt,
-    dwellState.completedToday,
-    dwellState.minutesDwelling,
-    dwellState.gymName,
-    preferences.gymLocation,
-    completeWorkout,
-  ]);
+  }, [dwellState.isDwelling, dwellState.enteredAt]);
 
   // Update weekly goal immediately (e.g. on Monday)
   const setWeeklyGoal = async (goal: number) => {
-    const updatedPrefs = {
+    const updatedPrefs: UserPreferences = {
       ...preferences,
       weeklyGoal: goal,
       pendingWeeklyGoal: null,
@@ -307,7 +272,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Schedule weekly goal to update starting next Monday
   const scheduleGoalForMonday = async (goal: number) => {
-    const updatedPrefs = {
+    const updatedPrefs: UserPreferences = {
       ...preferences,
       pendingWeeklyGoal: goal,
     };
@@ -317,7 +282,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Cancel scheduled Monday goal
   const cancelPendingGoal = async () => {
-    const updatedPrefs = {
+    const updatedPrefs: UserPreferences = {
       ...preferences,
       pendingWeeklyGoal: null,
     };
@@ -327,58 +292,55 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Update Gym Location with locked 300m radius and 15 min dwell
   const updateGymLocation = async (location: GymLocation) => {
-    const lockedLocation = {
+    const lockedLocation: GymLocation = {
       ...location,
       radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Fixed at 300m
       dwellMinutesRequired: FIXED_DWELL_MINUTES, // Fixed at 15m
     };
-    const updatedPrefs = { ...preferences, gymLocation: lockedLocation };
+    const updatedPrefs: UserPreferences = { ...preferences, gymLocation: lockedLocation };
     setPreferences(updatedPrefs);
     await storageService.savePreferences(updatedPrefs);
     refreshLocation();
   };
 
-  // Simulation controls (tests 15 min dwell requirement)
-  const simulateEnterGym = () => {
-    setDwellState({
-      isDwelling: true,
-      enteredAt: new Date().toISOString(),
-      minutesDwelling: 0,
-      gymName: preferences.gymLocation?.name || 'Simulated Gym',
-      completedToday: dwellState.completedToday,
-    });
+  // Simulation controls (persists to AsyncStorage and keeps tracking past 15 mins while inside gym)
+  const simulateEnterGym = async () => {
+    const gymName = preferences.gymLocation?.name || 'Simulated Gym';
+    const session = await storageService.handleBackgroundGeofenceEnter(gymName);
+    setDwellState(session);
     setCurrentDistanceMeters(10); // 10 meters away
   };
 
-  const simulateDwellProgress = (addMinutes: number) => {
-    setDwellState((prev) => {
-      const newDwell = prev.minutesDwelling + addMinutes;
-      const required = FIXED_DWELL_MINUTES;
+  const simulateDwellProgress = async (addMinutes: number) => {
+    const newDwell = dwellState.minutesDwelling + addMinutes;
+    const simulatedEnteredAt = new Date(Date.now() - newDwell * 60 * 1000).toISOString();
 
-      // When user remains at the location for the entire 15 mins
-      if (newDwell >= required && !prev.completedToday) {
-        completeWorkout(prev.gymName || 'Local Gym', new Date(), newDwell);
-        return {
-          ...prev,
-          minutesDwelling: newDwell,
-          completedToday: true,
-        };
-      }
+    const updatedSession: DwellSessionState = {
+      ...dwellState,
+      isDwelling: true,
+      enteredAt: simulatedEnteredAt,
+      minutesDwelling: newDwell,
+      gymName: dwellState.gymName || preferences.gymLocation?.name || 'Local Gym',
+      dateString: formatDateToYYYYMMDD(new Date()),
+    };
+    await storageService.saveDwellSession(updatedSession);
 
-      return {
-        ...prev,
-        minutesDwelling: newDwell,
-      };
-    });
+    const evalResult = await storageService.evaluatePersistedDwellSession();
+    setDwellState(evalResult.dwellSession);
+    setStreakState(evalResult.streakState);
+    setWorkouts(evalResult.workouts);
+    setCurrentDistanceMeters(10);
   };
 
-  const simulateLeaveGym = () => {
-    setDwellState((prev) => ({
-      ...prev,
-      isDwelling: false,
-      minutesDwelling: 0,
-      enteredAt: undefined,
-    }));
+  const simulateLeaveGym = async () => {
+    const exited = await storageService.handleBackgroundGeofenceExit();
+    const [latestStreak, latestWorkouts] = await Promise.all([
+      storageService.getStreakState(),
+      storageService.getWorkouts(),
+    ]);
+    setDwellState(exited);
+    setStreakState(latestStreak);
+    setWorkouts(latestWorkouts);
     setCurrentDistanceMeters(2500); // 2.5 km away
   };
 
@@ -395,17 +357,21 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       d.setDate(d.getDate() - i);
       fakePriorWorkouts.push({
         id: `sim_w_${i}`,
+        userId: userProfile.id,
         timestamp: d.toISOString(),
         dateString: formatDateToYYYYMMDD(d),
         durationMinutes: 45,
         verifiedByGps: true,
         gymName: preferences.gymLocation?.name || 'Local Gym',
         weekId: prevWeekId,
+        updatedAt: d.toISOString(),
+        synced: false,
       });
     }
 
     const stateWithPriorWeek: StreakState = {
       ...streakState,
+      userId: userProfile.id,
       currentStreak: streakState.currentStreak > 0 ? streakState.currentStreak : 5,
       lastEvaluatedWeekId: prevWeekId,
     };
@@ -422,25 +388,23 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const resetAll = async () => {
     await storageService.clearAllData();
     setPreferences(DEFAULT_PREFERENCES);
-    setStreakState(DEFAULT_STREAK_STATE);
+    setStreakState({ ...DEFAULT_STREAK_STATE, userId: userProfile.id });
     setWorkouts([]);
-    setDwellState({
-      isDwelling: false,
-      minutesDwelling: 0,
-      completedToday: false,
-    });
+    setDwellState(DEFAULT_DWELL_SESSION);
     setCurrentDistanceMeters(null);
   };
 
   return (
     <FitnessContext.Provider
       value={{
+        userProfile,
         preferences,
         streakState,
         workouts,
         dwellState,
         currentDistanceMeters,
         isLoading,
+        updateUserProfile,
         setWeeklyGoal,
         scheduleGoalForMonday,
         cancelPendingGoal,

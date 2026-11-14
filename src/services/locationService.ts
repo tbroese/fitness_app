@@ -1,11 +1,13 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { GymLocation, DEFAULT_GEOFENCE_RADIUS_METERS } from '../types/fitness';
+import { storageService } from './storageService';
 
 export const GEOFENCE_TASK_NAME = 'GYM_GEOFENCE_TASK';
 
 // Define the background geofence task synchronously at module global scope
-// This is strictly required by Expo TaskManager before any components mount
+// This is strictly required by Expo TaskManager before any components mount.
+// It persists dwell entry/exit directly to AsyncStorage so background check-ins work even when the app UI is closed.
 try {
   if (!TaskManager.isTaskDefined(GEOFENCE_TASK_NAME)) {
     TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
@@ -17,8 +19,10 @@ try {
         const { eventType, region } = data as any;
         if (eventType === Location.GeofencingEventType.Enter) {
           console.log(`[Geofence] Entered gym region: ${region?.identifier}`);
+          await storageService.handleBackgroundGeofenceEnter(region?.identifier);
         } else if (eventType === Location.GeofencingEventType.Exit) {
           console.log(`[Geofence] Exited gym region: ${region?.identifier}`);
+          await storageService.handleBackgroundGeofenceExit();
         }
       }
     });

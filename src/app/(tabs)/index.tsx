@@ -15,16 +15,20 @@ import { StreakCard } from '../../components/StreakCard';
 import { WeeklyProgressCard } from '../../components/WeeklyProgressCard';
 import { GymStatusCard } from '../../components/GymStatusCard';
 import { GpsSimulatorModal } from '../../components/GpsSimulatorModal';
+import { FirstTimeNameModal } from '../../components/FirstTimeNameModal';
 import { theme } from '../../constants/theme';
 
 export default function DashboardScreen() {
   const {
+    userProfile,
     preferences,
     streakState,
     workouts,
     dwellState,
     currentDistanceMeters,
+    isLoading,
     refreshLocation,
+    updateUserProfile,
   } = useFitness();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -43,9 +47,10 @@ export default function DashboardScreen() {
   });
 
   const isReset = streakState.streakStatus === 'reset';
+  const showOnboardingModal = !isLoading && !userProfile.hasCompletedOnboarding;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
@@ -57,12 +62,23 @@ export default function DashboardScreen() {
           />
         }
       >
-        {/* Top Header */}
+        {/* Top Header with User Profile Pill */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.dateText}>{todayFormatted.toUpperCase()}</Text>
-            <Text style={styles.welcomeText}>Habit Accountability</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.profileRow}
+            onPress={() => router.push('/profile')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.avatarBadge}>
+              <Ionicons name="person" size={20} color={theme.primaryLight} />
+            </View>
+            <View>
+              <Text style={styles.dateText}>{todayFormatted.toUpperCase()}</Text>
+              <Text style={styles.welcomeText}>
+                {userProfile.fullName || 'Welcome'}
+              </Text>
+            </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.simBadge}
@@ -119,6 +135,12 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
 
+      {/* First-Time Full Name Onboarding Prompt */}
+      <FirstTimeNameModal
+        visible={showOnboardingModal}
+        onSaveName={updateUserProfile}
+      />
+
       {/* Simulator Modal for testing */}
       <GpsSimulatorModal
         visible={simulatorVisible}
@@ -143,21 +165,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingHorizontal: 18,
+    paddingTop: 14,
     paddingBottom: 6,
   },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.primaryMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+  },
   dateText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: theme.textSecondary,
     letterSpacing: 1,
   },
   welcomeText: {
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: '800',
     color: theme.textPrimary,
-    marginTop: 2,
+    marginTop: 1,
   },
   simBadge: {
     flexDirection: 'row',

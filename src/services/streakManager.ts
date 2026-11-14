@@ -35,6 +35,7 @@ export function evaluateWeeklyReset(
       lastEvaluatedWeekId: currentWeekId,
       streakStatus: 'active',
       statusMessage: undefined,
+      updatedAt: currentDate.toISOString(),
     };
   }
 
@@ -87,6 +88,7 @@ export function evaluateWeeklyReset(
     lastEvaluatedWeekId: currentWeekId,
     streakStatus,
     statusMessage,
+    updatedAt: currentDate.toISOString(),
   };
 }
 
@@ -100,7 +102,8 @@ export function recordCompletedWorkout(
   existingWorkouts: WorkoutSession[],
   gymName: string,
   workoutDate: Date = new Date(),
-  durationMinutes: number = 45
+  durationMinutes: number = 15,
+  userId?: string
 ): {
   success: boolean;
   message: string;
@@ -110,6 +113,7 @@ export function recordCompletedWorkout(
 } {
   const dateString = formatDateToYYYYMMDD(workoutDate);
   const weekId = getIsoWeekId(workoutDate);
+  const isoNow = workoutDate.toISOString();
 
   // Check if a workout has already been recorded today
   const alreadyDoneToday = existingWorkouts.some((w) => w.dateString === dateString);
@@ -122,15 +126,18 @@ export function recordCompletedWorkout(
     };
   }
 
-  // Create new workout session
+  // Create new workout session with cloud-ready metadata
   const newWorkout: WorkoutSession = {
-    id: `workout_${Date.now()}`,
-    timestamp: workoutDate.toISOString(),
+    id: `workout_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    userId: userId || currentState.userId,
+    timestamp: isoNow,
     dateString,
     durationMinutes,
     verifiedByGps: true,
     gymName,
     weekId,
+    updatedAt: isoNow,
+    synced: false,
   };
 
   const updatedWorkouts = [newWorkout, ...existingWorkouts];
@@ -148,11 +155,14 @@ export function recordCompletedWorkout(
   const evaluated = evaluateWeeklyReset(
     {
       ...currentState,
+      userId: userId || currentState.userId,
       currentStreak: newStreak,
       bestStreak,
       currentWeekWorkouts,
       lastCompletedDate: dateString,
       lastEvaluatedWeekId: weekId,
+      updatedAt: isoNow,
+      synced: false,
     },
     preferences,
     updatedWorkouts,

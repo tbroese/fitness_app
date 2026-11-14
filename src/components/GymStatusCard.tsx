@@ -84,13 +84,26 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
       </View>
 
       {/* Dwell Timer / In-Progress Workout */}
-      {dwellState.completedToday ? (
+      {dwellState.completedToday && dwellState.isDwelling ? (
+        <View style={styles.completedBanner}>
+          <Ionicons name="checkmark-done-circle" size={24} color={theme.success} />
+          <View style={{ flex: 1 }}>
+            <View style={styles.completedHeaderRow}>
+              <Text style={styles.completedTitle}>Workout Verified!</Text>
+              <Text style={styles.liveSessionBadge}>{dwellState.minutesDwelling} mins</Text>
+            </View>
+            <Text style={styles.completedSub}>
+              15-min goal reached. Continuing to track your gym time while you stay!
+            </Text>
+          </View>
+        </View>
+      ) : dwellState.completedToday ? (
         <View style={styles.completedBanner}>
           <Ionicons name="checkmark-done-circle" size={24} color={theme.success} />
           <View style={{ flex: 1 }}>
             <Text style={styles.completedTitle}>Workout Completed Today!</Text>
             <Text style={styles.completedSub}>
-              Verified by GPS ({dwellRequired} mins dwell). Your streak has been updated!
+              Total time in gym today: {Math.max(dwellRequired, dwellState.minutesDwelling)} mins. Your streak has been updated!
             </Text>
           </View>
         </View>
@@ -239,15 +252,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.3)',
   },
+  completedHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   completedTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: theme.successLight,
   },
+  liveSessionBadge: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: theme.successLight,
+  },
   completedSub: {
     fontSize: 12,
     color: theme.textSecondary,
-    marginTop: 2,
+    marginTop: 4,
+    lineHeight: 16,
   },
   dwellBox: {
     backgroundColor: theme.primaryMuted,

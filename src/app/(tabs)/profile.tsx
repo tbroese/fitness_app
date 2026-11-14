@@ -1,0 +1,245 @@
+import React, { useState, useEffect } from 'react';
+import {
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useFitness } from '../../context/FitnessContext';
+import { theme } from '../../constants/theme';
+
+export default function ProfileScreen() {
+  const { userProfile, streakState, workouts, updateUserProfile } = useFitness();
+
+  const [fullName, setFullName] = useState(userProfile.fullName);
+
+  useEffect(() => {
+    setFullName(userProfile.fullName);
+  }, [userProfile.fullName]);
+
+  const totalMinutes = workouts.reduce((sum, w) => sum + (w.durationMinutes || 0), 0);
+
+  const memberSince = new Date(userProfile.createdAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  const handleSaveProfile = async () => {
+    const trimmed = fullName.trim();
+    if (!trimmed) {
+      Alert.alert('Full Name Required', 'Please enter your full name.');
+      return;
+    }
+
+    await updateUserProfile(trimmed);
+    Alert.alert('Saved', 'Your full name has been saved to your device.');
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {/* Hero Profile Banner */}
+        <View style={styles.heroCard}>
+          <View style={styles.avatarCircle}>
+            <Ionicons name="person" size={32} color={theme.primaryLight} />
+          </View>
+          <View style={styles.heroInfo}>
+            <Text style={styles.heroName}>{userProfile.fullName || 'New Member'}</Text>
+            <Text style={styles.heroMeta}>Member since {memberSince}</Text>
+          </View>
+          <View style={styles.offlineBadge}>
+            <Ionicons name="phone-portrait-outline" size={12} color={theme.successLight} />
+            <Text style={styles.offlineBadgeText}>On-Device</Text>
+          </View>
+        </View>
+
+        {/* Career Stats Grid */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{streakState.currentStreak} 🔥</Text>
+            <Text style={styles.statLabel}>Current Streak</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{streakState.bestStreak} 🏆</Text>
+            <Text style={styles.statLabel}>Best Streak</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{workouts.length}</Text>
+            <Text style={styles.statLabel}>Workouts</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{totalMinutes}m</Text>
+            <Text style={styles.statLabel}>Gym Time</Text>
+          </View>
+        </View>
+
+        {/* Edit Profile Form */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="person-circle-outline" size={22} color={theme.primaryLight} />
+            <Text style={styles.sectionTitle}>Profile</Text>
+          </View>
+
+          <Text style={styles.fieldLabel}>Full Name</Text>
+          <TextInput
+            style={styles.input}
+            value={fullName}
+            onChangeText={setFullName}
+            placeholder="Enter your full name"
+            placeholderTextColor={theme.textTertiary}
+          />
+
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
+            <Text style={styles.saveBtnText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  container: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  heroCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    gap: 14,
+  },
+  avatarCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: theme.primaryMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+  },
+  heroInfo: {
+    flex: 1,
+  },
+  heroName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: theme.textPrimary,
+  },
+  heroMeta: {
+    fontSize: 12,
+    color: theme.textTertiary,
+    marginTop: 4,
+  },
+  offlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: theme.successMuted,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  offlineBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.successLight,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginVertical: 14,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: theme.cardBackground,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: theme.textPrimary,
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  sectionCard: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: theme.textPrimary,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.textPrimary,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: theme.inputBackground,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: theme.textPrimary,
+  },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.primary,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 18,
+  },
+  saveBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+});

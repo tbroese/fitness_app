@@ -145,7 +145,7 @@ export default function GoalSetupScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* Section 1: Weekly Goal */}
         <View style={styles.sectionCard}>

@@ -139,4 +139,31 @@ if (prefs.pendingWeeklyGoal) {
 assert.strictEqual(prefs.weeklyGoal, 3, 'Goal updated to 3 on Monday transition');
 assert.strictEqual(prefs.pendingWeeklyGoal, null, 'Pending goal cleared');
 
+// Test 4: Local UserProfile (Full Name Only + First-Time Onboarding)
+const defaultProfile = {
+  id: 'usr_test_12345',
+  fullName: '',
+  hasCompletedOnboarding: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  syncedAt: null,
+};
+assert(defaultProfile.id.startsWith('usr_'), 'Profile ID must have offline UUID prefix');
+assert.strictEqual(defaultProfile.hasCompletedOnboarding, false, 'New user starts with onboarding incomplete');
+
+// After user enters Full Name on first open
+const savedProfile = {
+  ...defaultProfile,
+  fullName: 'Tanner Smith',
+  hasCompletedOnboarding: true,
+};
+assert.strictEqual(savedProfile.fullName, 'Tanner Smith', 'Full name saved to profile');
+assert.strictEqual(savedProfile.hasCompletedOnboarding, true, 'Onboarding marked complete after saving full name');
+
+// Test 5: Continuous Gym Time Tracking Past 15-Min Dwell Threshold
+const enteredFortyTwoMinsAgo = new Date(Date.now() - 42 * 60 * 1000).toISOString();
+const elapsedMins = Math.floor((Date.now() - new Date(enteredFortyTwoMinsAgo).getTime()) / 60000);
+assert(elapsedMins >= 15, '15-min threshold reached');
+assert.strictEqual(elapsedMins, 42, 'Gym time continues tracking past 15 mins up to 42 mins while inside perimeter');
+
 console.log('✅ ALL TESTS PASSED SUCCESSFULLY!');

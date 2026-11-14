@@ -61,7 +61,7 @@ export default function HistoryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <View style={styles.container}>
         {/* Summary stats */}
         <View style={styles.statsRow}>

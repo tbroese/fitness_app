@@ -1,8 +1,31 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import { GymLocation } from '../types/fitness';
+import { GymLocation, DEFAULT_GEOFENCE_RADIUS_METERS } from '../types/fitness';
 
 export const GEOFENCE_TASK_NAME = 'GYM_GEOFENCE_TASK';
+
+// Define the background geofence task synchronously at module global scope
+// This is strictly required by Expo TaskManager before any components mount
+try {
+  if (!TaskManager.isTaskDefined(GEOFENCE_TASK_NAME)) {
+    TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
+      if (error) {
+        console.error('Geofence task error:', error);
+        return;
+      }
+      if (data) {
+        const { eventType, region } = data as any;
+        if (eventType === Location.GeofencingEventType.Enter) {
+          console.log(`[Geofence] Entered gym region: ${region?.identifier}`);
+        } else if (eventType === Location.GeofencingEventType.Exit) {
+          console.log(`[Geofence] Exited gym region: ${region?.identifier}`);
+        }
+      }
+    });
+  }
+} catch (e) {
+  console.warn('Could not register TaskManager task globally:', e);
+}
 
 /**
  * Calculates distance in meters between two coordinates using Haversine formula
@@ -35,8 +58,9 @@ export function isInsideGym(
   currentLon: number,
   gym: GymLocation
 ): boolean {
+  const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
   const distance = calculateDistanceMeters(currentLat, currentLon, gym.latitude, gym.longitude);
-  return distance <= gym.radiusMeters;
+  return distance <= radius;
 }
 
 /**
@@ -50,8 +74,13 @@ export async function requestLocationPermissions(): Promise<{
     const fg = await Location.requestForegroundPermissionsAsync();
     let bgGranted = false;
     if (fg.granted) {
-      const bg = await Location.requestBackgroundPermissionsAsync();
-      bgGranted = bg.granted;
+      try {
+        const bg = await Location.requestBackgroundPermissionsAsync();
+        bgGranted = bg.granted;
+      } catch (bgErr) {
+        // Expo Go on Android does not support background location, but foreground works great
+        console.log('Background location not supported in this runtime (Expo Go):', bgErr);
+      }
     }
     return {
       foregroundGranted: fg.granted,
@@ -69,7 +98,7 @@ export async function requestLocationPermissions(): Promise<{
 export async function getCurrentCoordinates(): Promise<{ latitude: number; longitude: number } | null> {
   try {
     const loc = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
+      accuracy: Location.Accuracy.High,
     });
     return {
       latitude: loc.coords.latitude,
@@ -82,6 +111,39 @@ export async function getCurrentCoordinates(): Promise<{ latitude: number; longi
 }
 
 /**
+ * Subscribe to continuous location updates when app is open
+ */
+export async function subscribeToLocationUpdates(
+  callback: (coords: { latitude: number; longitude: number }) => void
+): Promise<Location.LocationSubscription | null> {
+  try {
+    const { granted } = await Location.getForegroundPermissionsAsync();
+    if (!granted) {
+      const req = await Location.requestForegroundPermissionsAsync();
+      if (!req.granted) return null;
+    }
+
+    const sub = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 3000, // check every 3 seconds while active
+        distanceInterval: 5, // or every 5 meters
+      },
+      (loc) => {
+        callback({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+      }
+    );
+    return sub;
+  } catch (e) {
+    console.warn('watchPositionAsync not available:', e);
+    return null;
+  }
+}
+
+/**
  * Setup geofence monitoring with expo-location
  */
 export async function setupGymGeofence(gym: GymLocation): Promise<boolean> {
@@ -89,30 +151,14 @@ export async function setupGymGeofence(gym: GymLocation): Promise<boolean> {
     const isAvailable = await Location.hasServicesEnabledAsync();
     if (!isAvailable) return false;
 
-    const isTaskDefined = TaskManager.isTaskDefined(GEOFENCE_TASK_NAME);
-    if (!isTaskDefined) {
-      TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
-        if (error) {
-          console.error('Geofence task error:', error);
-          return;
-        }
-        if (data) {
-          const { eventType, region } = data as any;
-          if (eventType === Location.GeofencingEventType.Enter) {
-            console.log(`[Geofence] Entered gym region: ${region.identifier}`);
-          } else if (eventType === Location.GeofencingEventType.Exit) {
-            console.log(`[Geofence] Exited gym region: ${region.identifier}`);
-          }
-        }
-      });
-    }
+    const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
 
     await Location.startGeofencingAsync(GEOFENCE_TASK_NAME, [
       {
         identifier: gym.name,
         latitude: gym.latitude,
         longitude: gym.longitude,
-        radius: gym.radiusMeters,
+        radius,
         notifyOnEnter: true,
         notifyOnExit: true,
       },
@@ -120,7 +166,8 @@ export async function setupGymGeofence(gym: GymLocation): Promise<boolean> {
 
     return true;
   } catch (err) {
-    console.warn('Unable to register native geofencing task:', err);
+    // Note: Expo Go on Android does not support startGeofencingAsync, but foreground location watching handles it cleanly
+    console.log('Background geofencing unavailable in current runtime (handled via live location watcher):', err);
     return false;
   }
 }

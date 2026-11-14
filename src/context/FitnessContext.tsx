@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   UserPreferences,
   WorkoutSession,
@@ -20,6 +20,7 @@ import {
 import {
   calculateDistanceMeters,
   getCurrentCoordinates,
+  subscribeToLocationUpdates,
 } from '../services/locationService';
 import { formatDateToYYYYMMDD, getIsoWeekId } from '../utils/dateUtils';
 
@@ -56,6 +57,9 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     minutesDwelling: 0,
     completedToday: false,
   });
+
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
 
   // Load state and perform weekly evaluation
   const loadData = useCallback(async () => {
@@ -112,19 +116,20 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Check current GPS location against gym
   const refreshLocation = useCallback(async () => {
-    if (!preferences.gymLocation) return;
+    const gym = preferencesRef.current.gymLocation;
+    if (!gym) return;
     const coords = await getCurrentCoordinates();
     if (!coords) return;
 
     const distance = calculateDistanceMeters(
       coords.latitude,
       coords.longitude,
-      preferences.gymLocation.latitude,
-      preferences.gymLocation.longitude
+      gym.latitude,
+      gym.longitude
     );
     setCurrentDistanceMeters(distance);
 
-    const radius = preferences.gymLocation.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
+    const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
 
     // If inside perimeter (300m)
     if (distance <= radius) {
@@ -134,7 +139,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
             ...prev,
             isDwelling: true,
             enteredAt: new Date().toISOString(),
-            gymName: preferences.gymLocation?.name,
+            minutesDwelling: 0,
+            gymName: gym.name,
           };
         }
         return prev;
@@ -144,13 +150,73 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...prev,
         isDwelling: false,
         minutesDwelling: 0,
+        enteredAt: undefined,
       }));
     }
-  }, [preferences.gymLocation]);
+  }, []);
+
+  // Continuous live GPS watching when app is active
+  useEffect(() => {
+    let sub: any = null;
+    let isMounted = true;
+
+    // Initial check right away
+    refreshLocation();
+
+    if (preferences.gymLocation) {
+      subscribeToLocationUpdates((coords) => {
+        if (!isMounted) return;
+        const gym = preferencesRef.current.gymLocation;
+        if (!gym) return;
+
+        const distance = calculateDistanceMeters(
+          coords.latitude,
+          coords.longitude,
+          gym.latitude,
+          gym.longitude
+        );
+        setCurrentDistanceMeters(distance);
+
+        const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
+        if (distance <= radius) {
+          setDwellState((prev) => {
+            if (!prev.isDwelling) {
+              return {
+                ...prev,
+                isDwelling: true,
+                enteredAt: new Date().toISOString(),
+                minutesDwelling: 0,
+                gymName: gym.name,
+              };
+            }
+            return prev;
+          });
+        } else {
+          setDwellState((prev) => ({
+            ...prev,
+            isDwelling: false,
+            minutesDwelling: 0,
+            enteredAt: undefined,
+          }));
+        }
+      }).then((subscription) => {
+        if (isMounted) {
+          sub = subscription;
+        } else if (subscription && subscription.remove) {
+          subscription.remove();
+        }
+      });
+    }
+
+    return () => {
+      isMounted = false;
+      if (sub && sub.remove) sub.remove();
+    };
+  }, [preferences.gymLocation, refreshLocation]);
 
   // Record a completed workout (only called when GPS dwells for full 15 minutes)
   const completeWorkout = useCallback(
-    async (gymName: string, workoutDate: Date = new Date(), duration: number = 45) => {
+    async (gymName: string, workoutDate: Date = new Date(), duration: number = 15) => {
       const result = recordCompletedWorkout(
         streakState,
         preferences,
@@ -177,6 +243,46 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     },
     [streakState, preferences, workouts]
   );
+
+  // Live real-time dwell time counter
+  // Increments minutesDwelling in real time while inside gym perimeter
+  useEffect(() => {
+    if (!dwellState.isDwelling || !dwellState.enteredAt || dwellState.completedToday) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (!dwellState.enteredAt) return;
+      const elapsedMs = Date.now() - new Date(dwellState.enteredAt).getTime();
+      const elapsedMins = Math.floor(elapsedMs / (1000 * 60));
+
+      if (elapsedMins !== dwellState.minutesDwelling) {
+        setDwellState((prev) => ({
+          ...prev,
+          minutesDwelling: elapsedMins,
+        }));
+      }
+
+      // Automatically complete workout when reaching 15 minutes!
+      if (elapsedMins >= FIXED_DWELL_MINUTES && !dwellState.completedToday) {
+        completeWorkout(
+          dwellState.gymName || preferences.gymLocation?.name || 'My Gym',
+          new Date(),
+          Math.max(15, elapsedMins)
+        );
+      }
+    }, 5000); // Ticks every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [
+    dwellState.isDwelling,
+    dwellState.enteredAt,
+    dwellState.completedToday,
+    dwellState.minutesDwelling,
+    dwellState.gymName,
+    preferences.gymLocation,
+    completeWorkout,
+  ]);
 
   // Update weekly goal immediately (e.g. on Monday)
   const setWeeklyGoal = async (goal: number) => {
@@ -271,6 +377,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ...prev,
       isDwelling: false,
       minutesDwelling: 0,
+      enteredAt: undefined,
     }));
     setCurrentDistanceMeters(2500); // 2.5 km away
   };

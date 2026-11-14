@@ -12,6 +12,7 @@ export const STREAK_LOST_MESSAGE = 'Streak lost. Your new streak will start next
  * Rule: If there are less days in the week than needed to reach the goal,
  * the streak resets to 0 and displays:
  * "Streak lost. Your new streak will start next week."
+ * Exception: A brand new user who just installed the app starts clean and active.
  */
 export function evaluateWeeklyReset(
   currentState: StreakState,
@@ -22,6 +23,20 @@ export function evaluateWeeklyReset(
   const currentWeekId = getIsoWeekId(currentDate);
   const todayStr = formatDateToYYYYMMDD(currentDate);
   const workedOutToday = workouts.some((w) => w.dateString === todayStr);
+
+  // Brand-new install detection: 0 lifetime workouts and 0 streak
+  const isBrandNewInstall = workouts.length === 0 && currentState.currentStreak === 0 && currentState.bestStreak === 0;
+
+  if (isBrandNewInstall) {
+    return {
+      ...currentState,
+      currentStreak: 0,
+      currentWeekWorkouts: 0,
+      lastEvaluatedWeekId: currentWeekId,
+      streakStatus: 'active',
+      statusMessage: undefined,
+    };
+  }
 
   let newStreak = currentState.currentStreak;
   let isReset = false;
@@ -54,7 +69,7 @@ export function evaluateWeeklyReset(
   }
 
   let streakStatus: 'active' | 'at_risk' | 'reset' = 'active';
-  if (isReset || currentState.streakStatus === 'reset' && currentState.lastEvaluatedWeekId === currentWeekId) {
+  if (isReset || (currentState.streakStatus === 'reset' && currentState.lastEvaluatedWeekId === currentWeekId)) {
     streakStatus = 'reset';
     newStreak = 0;
     statusMessage = STREAK_LOST_MESSAGE;

@@ -1,10 +1,12 @@
+export const FIXED_DWELL_MINUTES = 15;
+
 export interface GymLocation {
   id: string;
   name: string;
   latitude: number;
   longitude: number;
   radiusMeters: number; // e.g., 150m
-  dwellMinutesRequired: number; // e.g., 20 or 25 mins
+  dwellMinutesRequired: number; // Fixed at 15 mins
 }
 
 export interface WorkoutSession {
@@ -20,7 +22,7 @@ export interface WorkoutSession {
 export interface UserPreferences {
   weeklyGoal: number; // 1 to 7 workouts per week
   gymLocation: GymLocation | null;
-  dwellDurationMinutes: number; // default 25
+  dwellDurationMinutes: number; // Fixed at 15 mins
   autoDetectGym: boolean;
 }
 

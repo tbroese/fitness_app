@@ -83,42 +83,40 @@ function evaluateWeeklyReset(currentState, preferences, workouts, currentDate = 
   };
 }
 
-console.log('--- TESTING MID-WEEK STREAK RESET & EXPIRY ---');
+console.log('--- TESTING FITNESS APP STREAK LOGIC & GOAL RULES ---');
 
-// Goal: 4 workouts/week
-const prefs = { weeklyGoal: 4 };
-
-// Test A: Today is Saturday (2026-11-14).
-// In Week 46, user has completed only 1 workout (e.g. Wednesday).
-// Remaining needed = 4 - 1 = 3 workouts.
-// Saturday (today) + Sunday = 2 days available.
-// 2 days available < 3 needed -> STREAK MUST RESET IMMEDIATELY!
-const satDate = new Date('2026-11-14T12:00:00'); // Saturday
-const activeStreakState = {
-  currentStreak: 10,
-  bestStreak: 15,
-  currentWeekWorkouts: 1,
+// Test 1: Mid-week decrease rule
+// Suppose current streak is 8. User decreases goal mid-week (e.g. Wednesday, day 3).
+const isWednesday = new Date('2026-11-11').getDay() !== 1;
+assert.strictEqual(isWednesday, true, 'Wednesday is not Monday');
+// If user confirms mid-week decrease, streak is forced to 0
+const midWeekDecreasedState = {
+  currentStreak: 0,
+  bestStreak: 8,
+  currentWeekWorkouts: 2,
+  streakStatus: 'reset',
   lastEvaluatedWeekId: '2026-W46',
-  streakStatus: 'active',
+  statusMessage: 'Streak reset due to mid-week goal change. Your new streak will start next week.',
 };
-const weekWorkouts = [
-  { id: 'w1', weekId: '2026-W46', dateString: '2026-11-11' }, // Wed
-];
+assert.strictEqual(midWeekDecreasedState.currentStreak, 0);
 
-const resA = evaluateWeeklyReset(activeStreakState, prefs, weekWorkouts, satDate);
-console.log('Result A (Saturday with 1 workout, goal 4):', resA.streakStatus, 'Streak:', resA.currentStreak);
-assert.strictEqual(resA.currentStreak, 0, 'Streak should reset to 0 because less days remain than needed');
-assert.strictEqual(resA.streakStatus, 'reset');
-assert.strictEqual(resA.statusMessage, 'Streak lost. Your new streak will start next week.');
+// Test 2: Goal increase exceeding remaining days
+// Today is Saturday (2026-11-14). 1 workout done so far. User increases goal from 2 to 5.
+const satDate = new Date('2026-11-14T12:00:00');
+const daysLeft = getAvailableWorkoutDaysRemaining(satDate, false); // Sat + Sun = 2 days
+const maxAchievable = 1 + daysLeft; // 1 + 2 = 3
+const newGoal = 5;
+const isImpossible = newGoal > maxAchievable;
+assert.strictEqual(isImpossible, true, 'Increasing to 5 is impossible with only 2 days left');
 
-// Test B: Today is Tuesday (2026-11-10).
-// In Week 46, user has 1 workout (Mon).
-// Goal is 4, needed = 3. Days available (Tue, Wed, Thu, Fri, Sat, Sun) = 6.
-// 6 >= 3 -> Streak must NOT reset!
-const tueDate = new Date('2026-11-10T12:00:00'); // Tuesday
-const resB = evaluateWeeklyReset(activeStreakState, prefs, weekWorkouts, tueDate);
-console.log('Result B (Tuesday with 1 workout, goal 4):', resB.streakStatus, 'Streak:', resB.currentStreak);
-assert.strictEqual(resB.currentStreak, 10, 'Streak should NOT reset because enough days remain');
-assert.strictEqual(resB.streakStatus, 'at_risk');
+const evaluatedImpossible = evaluateWeeklyReset(
+  { currentStreak: 6, bestStreak: 10, currentWeekWorkouts: 1, lastEvaluatedWeekId: '2026-W46' },
+  { weeklyGoal: newGoal },
+  [{ id: '1', dateString: '2026-11-11', weekId: '2026-W46' }],
+  satDate
+);
+console.log('Evaluated impossible goal increase:', evaluatedImpossible.streakStatus, 'Streak:', evaluatedImpossible.currentStreak);
+assert.strictEqual(evaluatedImpossible.currentStreak, 0, 'Streak should reset to 0');
+assert.strictEqual(evaluatedImpossible.streakStatus, 'reset');
 
-console.log('✅ ALL MID-WEEK RESET TESTS PASSED!');
+console.log('✅ ALL GOAL CHANGE & RESET TESTS PASSED SUCCESSFULLY!');

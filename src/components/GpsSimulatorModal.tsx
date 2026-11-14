@@ -120,10 +120,10 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
 
                 <TouchableOpacity
                   style={[styles.btn, styles.btnGreen, { flex: 1.2 }]}
-                  onPress={() => simulateDwellProgress(preferences.dwellDurationMinutes || 20)}
+                  onPress={() => simulateDwellProgress(15)}
                 >
                   <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-                  <Text style={styles.btnText}>Complete Dwell</Text>
+                  <Text style={styles.btnText}>Complete 15m Dwell</Text>
                 </TouchableOpacity>
               </View>
 

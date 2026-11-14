@@ -5,6 +5,7 @@ import {
   StreakState,
   GymLocation,
   DwellSessionState,
+  FIXED_DWELL_MINUTES,
 } from '../types/fitness';
 import {
   storageService,
@@ -14,10 +15,10 @@ import {
 import {
   evaluateWeeklyReset,
   recordCompletedWorkout,
+  STREAK_LOST_MESSAGE,
 } from '../services/streakManager';
 import {
   calculateDistanceMeters,
-  requestLocationPermissions,
   getCurrentCoordinates,
 } from '../services/locationService';
 import { formatDateToYYYYMMDD, getIsoWeekId } from '../utils/dateUtils';
@@ -29,13 +30,12 @@ interface FitnessContextType {
   dwellState: DwellSessionState;
   currentDistanceMeters: number | null;
   isLoading: boolean;
-  setWeeklyGoal: (goal: number) => Promise<void>;
+  setWeeklyGoal: (goal: number, forceResetStreak?: boolean) => Promise<void>;
   updateGymLocation: (location: GymLocation) => Promise<void>;
   refreshLocation: () => Promise<void>;
   simulateEnterGym: () => void;
   simulateDwellProgress: (minutes: number) => void;
   simulateLeaveGym: () => void;
-  triggerManualCheckIn: () => { success: boolean; message: string };
   testSimulatePreviousWeek: (workoutsInPriorWeek: number) => Promise<void>;
   resetAll: () => Promise<void>;
 }
@@ -60,6 +60,12 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsLoading(true);
     try {
       const savedPrefs = await storageService.getPreferences();
+      // Enforce 15 mins dwell requirement
+      savedPrefs.dwellDurationMinutes = FIXED_DWELL_MINUTES;
+      if (savedPrefs.gymLocation) {
+        savedPrefs.gymLocation.dwellMinutesRequired = FIXED_DWELL_MINUTES;
+      }
+
       const savedWorkouts = await storageService.getWorkouts();
       const savedStreak = await storageService.getStreakState();
 
@@ -126,26 +132,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [preferences.gymLocation]);
 
-  // Update weekly goal
-  const setWeeklyGoal = async (goal: number) => {
-    const updatedPrefs = { ...preferences, weeklyGoal: goal };
-    setPreferences(updatedPrefs);
-    await storageService.savePreferences(updatedPrefs);
-
-    const reEvaluated = evaluateWeeklyReset(streakState, updatedPrefs, workouts, new Date());
-    setStreakState(reEvaluated);
-    await storageService.saveStreakState(reEvaluated);
-  };
-
-  // Update Gym Location
-  const updateGymLocation = async (location: GymLocation) => {
-    const updatedPrefs = { ...preferences, gymLocation: location };
-    setPreferences(updatedPrefs);
-    await storageService.savePreferences(updatedPrefs);
-    refreshLocation();
-  };
-
-  // Record a completed workout
+  // Record a completed workout (only called when GPS dwells for full 15 minutes)
   const completeWorkout = useCallback(
     async (gymName: string, workoutDate: Date = new Date(), duration: number = 45) => {
       const result = recordCompletedWorkout(
@@ -160,7 +147,12 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (result.success && result.newWorkout) {
         setStreakState(result.updatedState);
         setWorkouts(result.updatedWorkouts);
-        setDwellState((prev) => ({ ...prev, completedToday: true, minutesDwelling: 0, isDwelling: false }));
+        setDwellState((prev) => ({
+          ...prev,
+          completedToday: true,
+          minutesDwelling: FIXED_DWELL_MINUTES,
+          isDwelling: false,
+        }));
         await storageService.saveStreakState(result.updatedState);
         await storageService.saveWorkouts(result.updatedWorkouts);
       }
@@ -170,30 +162,48 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [streakState, preferences, workouts]
   );
 
-  // Manual / GPS trigger check-in
-  const triggerManualCheckIn = () => {
-    const gymName = preferences.gymLocation?.name || 'Local Gym';
-    const result = recordCompletedWorkout(
-      streakState,
-      preferences,
-      workouts,
-      gymName,
-      new Date(),
-      45
-    );
-
-    if (result.success && result.newWorkout) {
-      setStreakState(result.updatedState);
-      setWorkouts(result.updatedWorkouts);
-      setDwellState((prev) => ({ ...prev, completedToday: true, minutesDwelling: 0, isDwelling: false }));
-      storageService.saveStreakState(result.updatedState);
-      storageService.saveWorkouts(result.updatedWorkouts);
+  // Update weekly goal immediately with support for mid-week reset
+  const setWeeklyGoal = async (goal: number, forceResetStreak: boolean = false) => {
+    const updatedPrefs = {
+      ...preferences,
+      weeklyGoal: goal,
+      dwellDurationMinutes: FIXED_DWELL_MINUTES,
+    };
+    if (updatedPrefs.gymLocation) {
+      updatedPrefs.gymLocation.dwellMinutesRequired = FIXED_DWELL_MINUTES;
     }
 
-    return { success: result.success, message: result.message };
+    setPreferences(updatedPrefs);
+    await storageService.savePreferences(updatedPrefs);
+
+    let baseStreak = forceResetStreak ? 0 : streakState.currentStreak;
+    let baseStatus: 'active' | 'at_risk' | 'reset' = forceResetStreak ? 'reset' : streakState.streakStatus;
+    let baseMessage = forceResetStreak
+      ? 'Streak reset due to mid-week goal change. Your new streak will start next week.'
+      : streakState.statusMessage;
+
+    const baseState: StreakState = {
+      ...streakState,
+      currentStreak: baseStreak,
+      streakStatus: baseStatus,
+      statusMessage: baseMessage,
+    };
+
+    const reEvaluated = evaluateWeeklyReset(baseState, updatedPrefs, workouts, new Date());
+    setStreakState(reEvaluated);
+    await storageService.saveStreakState(reEvaluated);
   };
 
-  // Simulation controls
+  // Update Gym Location with locked 15 min dwell
+  const updateGymLocation = async (location: GymLocation) => {
+    const lockedLocation = { ...location, dwellMinutesRequired: FIXED_DWELL_MINUTES };
+    const updatedPrefs = { ...preferences, gymLocation: lockedLocation };
+    setPreferences(updatedPrefs);
+    await storageService.savePreferences(updatedPrefs);
+    refreshLocation();
+  };
+
+  // Simulation controls (tests 15 min dwell requirement)
   const simulateEnterGym = () => {
     setDwellState({
       isDwelling: true,
@@ -208,9 +218,9 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const simulateDwellProgress = (addMinutes: number) => {
     setDwellState((prev) => {
       const newDwell = prev.minutesDwelling + addMinutes;
-      const required = preferences.gymLocation?.dwellMinutesRequired || preferences.dwellDurationMinutes || 20;
+      const required = FIXED_DWELL_MINUTES;
 
-      // If dwell reached required threshold and not yet completed today
+      // When user remains at the location for the entire 15 mins
       if (newDwell >= required && !prev.completedToday) {
         completeWorkout(prev.gymName || 'Local Gym', new Date(), newDwell);
         return {
@@ -301,7 +311,6 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         simulateEnterGym,
         simulateDwellProgress,
         simulateLeaveGym,
-        triggerManualCheckIn,
         testSimulatePreviousWeek,
         resetAll,
       }}

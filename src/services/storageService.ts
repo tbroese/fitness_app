@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { UserPreferences, WorkoutSession, StreakState, GymLocation } from '../types/fitness';
+import { UserPreferences, WorkoutSession, StreakState, GymLocation, FIXED_DWELL_MINUTES } from '../types/fitness';
 import { getIsoWeekId } from '../utils/dateUtils';
 
 const STORAGE_KEYS = {
@@ -16,9 +16,9 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
     latitude: 37.7749, // default SF or customizable
     longitude: -122.4194,
     radiusMeters: 150,
-    dwellMinutesRequired: 20,
+    dwellMinutesRequired: FIXED_DWELL_MINUTES,
   },
-  dwellDurationMinutes: 20,
+  dwellDurationMinutes: FIXED_DWELL_MINUTES,
   autoDetectGym: true,
 };
 

@@ -8,12 +8,14 @@ A mobile application built with **React Native**, **Expo SDK 58**, and **Expo Ro
 
 1. **Weekly Goal Configuration**
    - Choose your commitment: 1 to 7 workouts per week.
-   - Automatically tracks your weekly quota and calculates your risk status as the week progresses.
+   - **Goal Change Safeguards**:
+     - **Decreasing Goal**: Decreasing your goal mid-week (Tuesday–Sunday) warns you that your streak will reset to 0; goal decreases should be done on Monday to preserve streaks.
+     - **Increasing Goal**: Increasing your goal beyond what is mathematically possible with the days left in the week warns you that your streak will be lost.
 
-2. **GPS Geofencing & Dwell Verification (Anti-Cheat)**
+2. **GPS Geofencing & Strict 15-Minute Dwell Verification (Anti-Cheat)**
    - Configure your gym's location (name, coordinates, geofence radius e.g. 150m).
    - "Use Current Location" button detects your exact coordinates using the device's GPS.
-   - **Anti-Cheat / Dwell Rule**: Requires staying within the gym perimeter for at least 20–30 minutes to count as a completed workout (prevents false check-ins from driving or walking past).
+   - **Strict Dwell Rule**: Requires staying within the gym perimeter for a fixed **15 minutes** to automatically verify and log a workout. Manual log buttons are prohibited to prevent cheating.
    - Limits check-ins to at most 1 workout per calendar day.
 
 3. **Habit Streak & Reset Mechanics**

@@ -25,7 +25,6 @@ export default function DashboardScreen() {
     dwellState,
     currentDistanceMeters,
     refreshLocation,
-    triggerManualCheckIn,
   } = useFitness();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -94,7 +93,6 @@ export default function DashboardScreen() {
           dwellState={dwellState}
           distanceMeters={currentDistanceMeters}
           onRefreshLocation={refreshLocation}
-          onManualCheckIn={triggerManualCheckIn}
           onOpenGymSettings={() => router.push('/goal')}
         />
 

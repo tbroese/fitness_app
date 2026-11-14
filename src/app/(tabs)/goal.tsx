@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ScrollView,
   View,
@@ -17,9 +17,14 @@ import {
   setupGymGeofence,
 } from '../../services/locationService';
 import { theme } from '../../constants/theme';
+import { FIXED_DWELL_MINUTES } from '../../types/fitness';
+import {
+  formatDateToYYYYMMDD,
+  getAvailableWorkoutDaysRemaining,
+} from '../../utils/dateUtils';
 
 export default function GoalSetupScreen() {
-  const { preferences, setWeeklyGoal, updateGymLocation } = useFitness();
+  const { preferences, streakState, workouts, setWeeklyGoal, updateGymLocation } = useFitness();
 
   const [selectedGoal, setSelectedGoal] = useState<number>(preferences.weeklyGoal);
   const [gymName, setGymName] = useState<string>(preferences.gymLocation?.name || 'My Local Gym');
@@ -30,18 +35,81 @@ export default function GoalSetupScreen() {
     preferences.gymLocation ? String(preferences.gymLocation.longitude) : '-122.4194'
   );
   const [radius, setRadius] = useState<number>(preferences.gymLocation?.radiusMeters || 150);
-  const [dwell, setDwell] = useState<number>(
-    preferences.gymLocation?.dwellMinutesRequired || preferences.dwellDurationMinutes || 20
-  );
   const [isLocating, setIsLocating] = useState(false);
+
+  // Sync selected goal whenever preferences changes to eliminate any lag or stale state
+  useEffect(() => {
+    setSelectedGoal(preferences.weeklyGoal);
+  }, [preferences.weeklyGoal]);
 
   const goalOptions = [1, 2, 3, 4, 5, 6, 7];
   const radiusOptions = [100, 150, 200, 300];
-  const dwellOptions = [15, 20, 25, 30, 45];
 
-  const handleSelectGoal = async (g: number) => {
-    setSelectedGoal(g);
-    await setWeeklyGoal(g);
+  const handleSelectGoal = async (newGoal: number) => {
+    if (newGoal === preferences.weeklyGoal) return;
+
+    // Check if today is Monday (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+    const isMonday = new Date().getDay() === 1;
+
+    // Warning 1: Decreasing day goal not on Monday will reset streak
+    if (newGoal < preferences.weeklyGoal && !isMonday) {
+      Alert.alert(
+        'Warning: Mid-Week Goal Decrease',
+        'Decreasing your weekly goal on any day other than Monday will immediately reset your current streak to 0!\n\nTo protect your streak, goal decreases can only be made on Monday without penalty.\n\nDo you want to proceed and reset your streak?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => setSelectedGoal(preferences.weeklyGoal),
+          },
+          {
+            text: 'Reset & Change Goal',
+            style: 'destructive',
+            onPress: async () => {
+              setSelectedGoal(newGoal);
+              await setWeeklyGoal(newGoal, true); // true = force reset streak
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Warning 2: Increasing days will make the streak impossible for current week
+    if (newGoal > preferences.weeklyGoal) {
+      const todayStr = formatDateToYYYYMMDD(new Date());
+      const workedOutToday = workouts.some((w) => w.dateString === todayStr);
+      const daysAvailable = getAvailableWorkoutDaysRemaining(new Date(), workedOutToday);
+      const currentWeekWorkouts = streakState.currentWeekWorkouts;
+      const maxPossibleWorkouts = currentWeekWorkouts + daysAvailable;
+
+      if (newGoal > maxPossibleWorkouts) {
+        Alert.alert(
+          'Warning: Goal Exceeds Remaining Days',
+          `Increasing your goal to ${newGoal} days is impossible to achieve with only ${daysAvailable} day(s) left in the week (current: ${currentWeekWorkouts}/${newGoal}).\n\nThis will immediately cause your streak to be lost!\n\nDo you still want to proceed?`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setSelectedGoal(preferences.weeklyGoal),
+            },
+            {
+              text: 'Proceed Anyway',
+              style: 'destructive',
+              onPress: async () => {
+                setSelectedGoal(newGoal);
+                await setWeeklyGoal(newGoal, false);
+              },
+            },
+          ]
+        );
+        return;
+      }
+    }
+
+    // Immediate change when valid
+    setSelectedGoal(newGoal);
+    await setWeeklyGoal(newGoal, false);
   };
 
   const handleUseCurrentLocation = async () => {
@@ -91,13 +159,13 @@ export default function GoalSetupScreen() {
       latitude: parsedLat,
       longitude: parsedLon,
       radiusMeters: radius,
-      dwellMinutesRequired: dwell,
+      dwellMinutesRequired: FIXED_DWELL_MINUTES,
     };
 
     await updateGymLocation(newGym);
     setupGymGeofence(newGym);
 
-    Alert.alert('Saved!', `Gym "${newGym.name}" configured with ${radius}m geofence and ${dwell}m dwell time.`);
+    Alert.alert('Saved!', `Gym "${newGym.name}" configured with ${radius}m geofence and ${FIXED_DWELL_MINUTES}m required dwell.`);
   };
 
   return (
@@ -110,9 +178,10 @@ export default function GoalSetupScreen() {
             <Text style={styles.sectionTitle}>Weekly Workout Goal</Text>
           </View>
           <Text style={styles.sectionDesc}>
-            Select how many workouts you plan to do each week. If fewer days remain in the week than needed, your streak resets and restarts next week.
+            Select how many workouts you plan to do each week. Changes take effect immediately.
           </Text>
 
+          {/* Goal selection pills */}
           <View style={styles.goalRow}>
             {goalOptions.map((g) => (
               <TouchableOpacity
@@ -142,6 +211,14 @@ export default function GoalSetupScreen() {
                 : '🌱 Starting foundation: consistency is key.'}
             </Text>
           </View>
+
+          {/* Rule Reminder Alert */}
+          <View style={styles.ruleReminderBox}>
+            <Ionicons name="shield-checkmark-outline" size={16} color={theme.warning} />
+            <Text style={styles.ruleReminderText}>
+              Goal Rule: Decreasing your goal mid-week (Tue–Sun) resets your streak to 0. Adjust goals on Monday to protect your streak.
+            </Text>
+          </View>
         </View>
 
         {/* Section 2: Gym Location & Geofence */}
@@ -151,7 +228,7 @@ export default function GoalSetupScreen() {
             <Text style={styles.sectionTitle}>Gym Location & Geofence</Text>
           </View>
           <Text style={styles.sectionDesc}>
-            Set your gym coordinates. When your phone GPS enters this radius and stays for the dwell duration, your workout is verified.
+            Set your gym coordinates. GPS requires remaining at the gym for {FIXED_DWELL_MINUTES} minutes to automatically complete a workout.
           </Text>
 
           {/* Gym Name */}
@@ -218,23 +295,15 @@ export default function GoalSetupScreen() {
             ))}
           </View>
 
-          {/* Dwell Verification Threshold */}
-          <Text style={styles.fieldLabel}>Minimum Dwell Time (Anti-Cheat)</Text>
-          <Text style={styles.fieldSub}>
-            Prevents marking a workout complete if you only drive or walk past the gym.
-          </Text>
-          <View style={styles.pillRow}>
-            {dwellOptions.map((d) => (
-              <TouchableOpacity
-                key={d}
-                style={[styles.smallPill, dwell === d && styles.smallPillActive]}
-                onPress={() => setDwell(d)}
-              >
-                <Text style={[styles.smallPillText, dwell === d && styles.smallPillTextActive]}>
-                  {d} mins
-                </Text>
-              </TouchableOpacity>
-            ))}
+          {/* Fixed Dwell Time Notice (Non-configurable) */}
+          <View style={styles.fixedDwellNotice}>
+            <Ionicons name="timer" size={18} color={theme.primaryLight} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fixedDwellTitle}>Verification Requirement: {FIXED_DWELL_MINUTES} Minutes</Text>
+              <Text style={styles.fixedDwellSub}>
+                To ensure accountability, workouts cannot be logged manually. You must remain inside the gym perimeter for at least {FIXED_DWELL_MINUTES} minutes.
+              </Text>
+            </View>
           </View>
 
           {/* Save Button */}
@@ -342,17 +411,30 @@ const styles = StyleSheet.create({
     color: theme.textSecondary,
     marginTop: 4,
   },
+  ruleReminderBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.warningMuted,
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  ruleReminderText: {
+    fontSize: 11,
+    color: theme.warning,
+    flex: 1,
+    lineHeight: 15,
+    fontWeight: '500',
+  },
   fieldLabel: {
     fontSize: 13,
     fontWeight: '700',
     color: theme.textPrimary,
     marginTop: 14,
     marginBottom: 6,
-  },
-  fieldSub: {
-    fontSize: 11,
-    color: theme.textSecondary,
-    marginBottom: 8,
   },
   input: {
     backgroundColor: theme.inputBackground,
@@ -410,6 +492,28 @@ const styles = StyleSheet.create({
   },
   smallPillTextActive: {
     color: '#FFFFFF',
+  },
+  fixedDwellNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  fixedDwellTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.primaryLight,
+  },
+  fixedDwellSub: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
   },
   saveBtn: {
     flexDirection: 'row',

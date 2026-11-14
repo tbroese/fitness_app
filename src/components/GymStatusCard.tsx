@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { GymLocation, DwellSessionState } from '../types/fitness';
+import { GymLocation, DwellSessionState, FIXED_DWELL_MINUTES } from '../types/fitness';
 import { theme } from '../constants/theme';
 
 interface GymStatusCardProps {
@@ -9,7 +9,6 @@ interface GymStatusCardProps {
   dwellState: DwellSessionState;
   distanceMeters: number | null;
   onRefreshLocation: () => void;
-  onManualCheckIn: () => { success: boolean; message: string };
   onOpenGymSettings: () => void;
 }
 
@@ -18,20 +17,14 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
   dwellState,
   distanceMeters,
   onRefreshLocation,
-  onManualCheckIn,
   onOpenGymSettings,
 }) => {
   const isInside = distanceMeters !== null && gym !== null && distanceMeters <= gym.radiusMeters;
-  const dwellRequired = gym?.dwellMinutesRequired || 20;
+  const dwellRequired = FIXED_DWELL_MINUTES;
   const dwellPercent = Math.min(
     100,
     Math.round((dwellState.minutesDwelling / dwellRequired) * 100)
   );
-
-  const handleManualCheckIn = () => {
-    const res = onManualCheckIn();
-    Alert.alert(res.success ? 'Logged!' : 'Notice', res.message);
-  };
 
   if (!gym) {
     return (
@@ -59,7 +52,9 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
           </View>
           <View>
             <Text style={styles.gymName}>{gym.name}</Text>
-            <Text style={styles.radiusText}>Geofence radius: {gym.radiusMeters}m</Text>
+            <Text style={styles.radiusText}>
+              Geofence: {gym.radiusMeters}m • Required stay: {dwellRequired} mins
+            </Text>
           </View>
         </View>
 
@@ -79,7 +74,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
         <Text style={styles.distanceText}>
           {distanceMeters !== null
             ? isInside
-              ? `You are inside the gym (${distanceMeters}m)`
+              ? `Inside gym perimeter (${distanceMeters}m)`
               : `${distanceMeters > 1000 ? (distanceMeters / 1000).toFixed(1) + ' km' : distanceMeters + 'm'} away`
             : 'Locating GPS...'}
         </Text>
@@ -95,7 +90,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
           <View style={{ flex: 1 }}>
             <Text style={styles.completedTitle}>Workout Completed Today!</Text>
             <Text style={styles.completedSub}>
-              Great job showing up. Your streak has been updated!
+              Verified by GPS ({dwellRequired} mins dwell). Your streak has been updated!
             </Text>
           </View>
         </View>
@@ -111,24 +106,16 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
             <View style={[styles.dwellProgressFill, { width: `${dwellPercent}%` }]} />
           </View>
           <Text style={styles.dwellSub}>
-            Stay inside gym for {Math.max(0, dwellRequired - dwellState.minutesDwelling)} more mins to automatically complete workout.
+            Remain at gym for {Math.max(0, dwellRequired - dwellState.minutesDwelling)} more mins to automatically log your workout.
           </Text>
         </View>
       ) : (
         <View style={styles.dwellBoxIdle}>
-          <Ionicons name="navigate-outline" size={18} color={theme.textTertiary} />
+          <Ionicons name="hourglass-outline" size={18} color={theme.textTertiary} />
           <Text style={styles.dwellIdleText}>
-            Visit your gym for {dwellRequired}+ mins to automatically log your workout.
+            Requires staying inside the gym for {dwellRequired} mins. Logging is fully automatic via GPS.
           </Text>
         </View>
-      )}
-
-      {/* Action Button */}
-      {!dwellState.completedToday && (
-        <TouchableOpacity style={styles.checkInBtn} onPress={handleManualCheckIn}>
-          <Ionicons name="checkbox-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.checkInBtnText}>Log Workout Now</Text>
-        </TouchableOpacity>
       )}
     </View>
   );
@@ -202,7 +189,7 @@ const styles = StyleSheet.create({
     color: theme.textPrimary,
   },
   radiusText: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.textSecondary,
     marginTop: 2,
   },
@@ -316,20 +303,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.textSecondary,
     flex: 1,
-  },
-  checkInBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: theme.primary,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 14,
-  },
-  checkInBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
+    lineHeight: 16,
   },
 });

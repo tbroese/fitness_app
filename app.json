@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Fitness Streak Tracker",
-    "slug": "fitness-tracker",
+    "slug": "fitness_tracker",
     "scheme": "fitnesstracker",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,6 +9,7 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.tannerbroese.fitnesstracker",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to verify your presence at the gym and track your workout streak.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "We use background location to automatically detect when you visit the gym and keep your streak updated.",
@@ -19,6 +20,8 @@
       }
     },
     "android": {
+      "package": "com.tannerbroese.fitnesstracker",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -37,6 +40,12 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "931f71b9-391a-403e-a994-654cc615b2c5"
+      }
+    }
   }
 }

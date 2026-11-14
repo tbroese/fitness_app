@@ -53,7 +53,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
           <View>
             <Text style={styles.gymName}>{gym.name}</Text>
             <Text style={styles.radiusText}>
-              Geofence: {gym.radiusMeters}m • Required stay: {dwellRequired} mins
+              Automatic GPS verification • {dwellRequired} mins stay required
             </Text>
           </View>
         </View>

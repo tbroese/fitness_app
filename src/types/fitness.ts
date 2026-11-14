@@ -1,11 +1,12 @@
 export const FIXED_DWELL_MINUTES = 15;
+export const DEFAULT_GEOFENCE_RADIUS_METERS = 300;
 
 export interface GymLocation {
   id: string;
   name: string;
   latitude: number;
   longitude: number;
-  radiusMeters: number; // e.g., 150m
+  radiusMeters: number; // Fixed at 300m
   dwellMinutesRequired: number; // Fixed at 15 mins
 }
 
@@ -20,7 +21,8 @@ export interface WorkoutSession {
 }
 
 export interface UserPreferences {
-  weeklyGoal: number; // 1 to 7 workouts per week
+  weeklyGoal: number; // default: 1
+  pendingWeeklyGoal?: number | null; // Scheduled to take effect next Monday
   gymLocation: GymLocation | null;
   dwellDurationMinutes: number; // Fixed at 15 mins
   autoDetectGym: boolean;

@@ -87,6 +87,20 @@ export default function DashboardScreen() {
           isReset={isReset}
         />
 
+        {/* Scheduled Goal Banner (if queued for Monday) */}
+        {preferences.pendingWeeklyGoal && (
+          <TouchableOpacity
+            style={styles.scheduledBanner}
+            onPress={() => router.push('/goal')}
+          >
+            <Ionicons name="calendar-outline" size={16} color={theme.warning} />
+            <Text style={styles.scheduledBannerText}>
+              Goal will change to {preferences.pendingWeeklyGoal} workouts/week starting next Monday.
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={theme.warning} />
+          </TouchableOpacity>
+        )}
+
         {/* 3. Gym Geofence & Dwell Status */}
         <GymStatusCard
           gym={preferences.gymLocation}
@@ -160,6 +174,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#C084FC',
+  },
+  scheduledBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.warningMuted,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+  },
+  scheduledBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.warning,
+    flex: 1,
   },
   infoBox: {
     flexDirection: 'row',

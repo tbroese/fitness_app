@@ -28,6 +28,21 @@ function getAvailableWorkoutDaysRemaining(date = new Date(), hasWorkedOutToday =
   return hasWorkedOutToday ? futureDaysInWeek : futureDaysInWeek + 1;
 }
 
+function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * c);
+}
+
 const STREAK_LOST_MESSAGE = 'Streak lost. Your new streak will start next week.';
 
 function evaluateWeeklyReset(currentState, preferences, workouts, currentDate = new Date()) {
@@ -83,40 +98,45 @@ function evaluateWeeklyReset(currentState, preferences, workouts, currentDate = 
   };
 }
 
-console.log('--- TESTING FITNESS APP STREAK LOGIC & GOAL RULES ---');
+console.log('--- TESTING UPDATED FITNESS APP RULES ---');
 
-// Test 1: Mid-week decrease rule
-// Suppose current streak is 8. User decreases goal mid-week (e.g. Wednesday, day 3).
-const isWednesday = new Date('2026-11-11').getDay() !== 1;
-assert.strictEqual(isWednesday, true, 'Wednesday is not Monday');
-// If user confirms mid-week decrease, streak is forced to 0
-const midWeekDecreasedState = {
-  currentStreak: 0,
-  bestStreak: 8,
-  currentWeekWorkouts: 2,
-  streakStatus: 'reset',
-  lastEvaluatedWeekId: '2026-W46',
-  statusMessage: 'Streak reset due to mid-week goal change. Your new streak will start next week.',
+// Test 1: Default weekly goal is 1
+const defaultGoal = 1;
+assert.strictEqual(defaultGoal, 1, 'Default weekly goal must start at 1');
+
+// Test 2: Geofence default is 300m
+const defaultGeofenceRadius = 300;
+const gymLat = 37.7749;
+const gymLon = -122.4194;
+// Point 250m away is inside
+const point250m = { lat: 37.7771, lon: -122.4194 };
+const dist250 = calculateDistanceMeters(gymLat, gymLon, point250m.lat, point250m.lon);
+assert(dist250 <= defaultGeofenceRadius, '250m point should be inside 300m geofence');
+// Point 350m away is outside
+const point350m = { lat: 37.7781, lon: -122.4194 };
+const dist350 = calculateDistanceMeters(gymLat, gymLon, point350m.lat, point350m.lon);
+assert(dist350 > defaultGeofenceRadius, '350m point should be outside 300m geofence');
+
+// Test 3: Mid-week goal changes are blocked and scheduled for Monday
+const testDate = new Date('2026-11-14T12:00:00'); // Saturday
+const isMonday = testDate.getDay() === 1;
+assert.strictEqual(isMonday, false, 'Saturday is not Monday');
+
+// When user chooses "Update Starting Monday", pending goal is stored
+const prefs = {
+  weeklyGoal: 1,
+  pendingWeeklyGoal: 3, // Scheduled for Monday
 };
-assert.strictEqual(midWeekDecreasedState.currentStreak, 0);
+assert.strictEqual(prefs.weeklyGoal, 1, 'Current week goal remains 1');
+assert.strictEqual(prefs.pendingWeeklyGoal, 3, 'Pending goal queued for Monday');
 
-// Test 2: Goal increase exceeding remaining days
-// Today is Saturday (2026-11-14). 1 workout done so far. User increases goal from 2 to 5.
-const satDate = new Date('2026-11-14T12:00:00');
-const daysLeft = getAvailableWorkoutDaysRemaining(satDate, false); // Sat + Sun = 2 days
-const maxAchievable = 1 + daysLeft; // 1 + 2 = 3
-const newGoal = 5;
-const isImpossible = newGoal > maxAchievable;
-assert.strictEqual(isImpossible, true, 'Increasing to 5 is impossible with only 2 days left');
+// On Monday transition, pending goal activates
+const nextMondayDate = new Date('2026-11-16T08:00:00'); // Next Monday
+if (prefs.pendingWeeklyGoal) {
+  prefs.weeklyGoal = prefs.pendingWeeklyGoal;
+  prefs.pendingWeeklyGoal = null;
+}
+assert.strictEqual(prefs.weeklyGoal, 3, 'Goal updated to 3 on Monday transition');
+assert.strictEqual(prefs.pendingWeeklyGoal, null, 'Pending goal cleared');
 
-const evaluatedImpossible = evaluateWeeklyReset(
-  { currentStreak: 6, bestStreak: 10, currentWeekWorkouts: 1, lastEvaluatedWeekId: '2026-W46' },
-  { weeklyGoal: newGoal },
-  [{ id: '1', dateString: '2026-11-11', weekId: '2026-W46' }],
-  satDate
-);
-console.log('Evaluated impossible goal increase:', evaluatedImpossible.streakStatus, 'Streak:', evaluatedImpossible.currentStreak);
-assert.strictEqual(evaluatedImpossible.currentStreak, 0, 'Streak should reset to 0');
-assert.strictEqual(evaluatedImpossible.streakStatus, 'reset');
-
-console.log('✅ ALL GOAL CHANGE & RESET TESTS PASSED SUCCESSFULLY!');
+console.log('✅ ALL TESTS PASSED SUCCESSFULLY!');

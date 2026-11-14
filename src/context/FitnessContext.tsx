@@ -6,6 +6,7 @@ import {
   GymLocation,
   DwellSessionState,
   FIXED_DWELL_MINUTES,
+  DEFAULT_GEOFENCE_RADIUS_METERS,
 } from '../types/fitness';
 import {
   storageService,
@@ -15,7 +16,6 @@ import {
 import {
   evaluateWeeklyReset,
   recordCompletedWorkout,
-  STREAK_LOST_MESSAGE,
 } from '../services/streakManager';
 import {
   calculateDistanceMeters,
@@ -30,7 +30,9 @@ interface FitnessContextType {
   dwellState: DwellSessionState;
   currentDistanceMeters: number | null;
   isLoading: boolean;
-  setWeeklyGoal: (goal: number, forceResetStreak?: boolean) => Promise<void>;
+  setWeeklyGoal: (goal: number) => Promise<void>;
+  scheduleGoalForMonday: (goal: number) => Promise<void>;
+  cancelPendingGoal: () => Promise<void>;
   updateGymLocation: (location: GymLocation) => Promise<void>;
   refreshLocation: () => Promise<void>;
   simulateEnterGym: () => void;
@@ -60,14 +62,26 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsLoading(true);
     try {
       const savedPrefs = await storageService.getPreferences();
-      // Enforce 15 mins dwell requirement
+      // Ensure defaults & locked values
       savedPrefs.dwellDurationMinutes = FIXED_DWELL_MINUTES;
       if (savedPrefs.gymLocation) {
         savedPrefs.gymLocation.dwellMinutesRequired = FIXED_DWELL_MINUTES;
+        savedPrefs.gymLocation.radiusMeters = DEFAULT_GEOFENCE_RADIUS_METERS;
       }
 
       const savedWorkouts = await storageService.getWorkouts();
       const savedStreak = await storageService.getStreakState();
+
+      const currentWeekId = getIsoWeekId(new Date());
+
+      // If week transitioned to a new week, apply any scheduled Monday goal change
+      if (savedStreak.lastEvaluatedWeekId && savedStreak.lastEvaluatedWeekId !== currentWeekId) {
+        if (savedPrefs.pendingWeeklyGoal) {
+          savedPrefs.weeklyGoal = savedPrefs.pendingWeeklyGoal;
+          savedPrefs.pendingWeeklyGoal = null;
+          await storageService.savePreferences(savedPrefs);
+        }
+      }
 
       // Check weekly reset
       const evaluatedStreak = evaluateWeeklyReset(
@@ -110,8 +124,10 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
     setCurrentDistanceMeters(distance);
 
-    // If inside perimeter
-    if (distance <= preferences.gymLocation.radiusMeters) {
+    const radius = preferences.gymLocation.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
+
+    // If inside perimeter (300m)
+    if (distance <= radius) {
       setDwellState((prev) => {
         if (!prev.isDwelling) {
           return {
@@ -162,41 +178,54 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [streakState, preferences, workouts]
   );
 
-  // Update weekly goal immediately with support for mid-week reset
-  const setWeeklyGoal = async (goal: number, forceResetStreak: boolean = false) => {
+  // Update weekly goal immediately (e.g. on Monday)
+  const setWeeklyGoal = async (goal: number) => {
     const updatedPrefs = {
       ...preferences,
       weeklyGoal: goal,
+      pendingWeeklyGoal: null,
       dwellDurationMinutes: FIXED_DWELL_MINUTES,
     };
     if (updatedPrefs.gymLocation) {
       updatedPrefs.gymLocation.dwellMinutesRequired = FIXED_DWELL_MINUTES;
+      updatedPrefs.gymLocation.radiusMeters = DEFAULT_GEOFENCE_RADIUS_METERS;
     }
 
     setPreferences(updatedPrefs);
     await storageService.savePreferences(updatedPrefs);
 
-    let baseStreak = forceResetStreak ? 0 : streakState.currentStreak;
-    let baseStatus: 'active' | 'at_risk' | 'reset' = forceResetStreak ? 'reset' : streakState.streakStatus;
-    let baseMessage = forceResetStreak
-      ? 'Streak reset due to mid-week goal change. Your new streak will start next week.'
-      : streakState.statusMessage;
-
-    const baseState: StreakState = {
-      ...streakState,
-      currentStreak: baseStreak,
-      streakStatus: baseStatus,
-      statusMessage: baseMessage,
-    };
-
-    const reEvaluated = evaluateWeeklyReset(baseState, updatedPrefs, workouts, new Date());
+    const reEvaluated = evaluateWeeklyReset(streakState, updatedPrefs, workouts, new Date());
     setStreakState(reEvaluated);
     await storageService.saveStreakState(reEvaluated);
   };
 
-  // Update Gym Location with locked 15 min dwell
+  // Schedule weekly goal to update starting next Monday
+  const scheduleGoalForMonday = async (goal: number) => {
+    const updatedPrefs = {
+      ...preferences,
+      pendingWeeklyGoal: goal,
+    };
+    setPreferences(updatedPrefs);
+    await storageService.savePreferences(updatedPrefs);
+  };
+
+  // Cancel scheduled Monday goal
+  const cancelPendingGoal = async () => {
+    const updatedPrefs = {
+      ...preferences,
+      pendingWeeklyGoal: null,
+    };
+    setPreferences(updatedPrefs);
+    await storageService.savePreferences(updatedPrefs);
+  };
+
+  // Update Gym Location with locked 300m radius and 15 min dwell
   const updateGymLocation = async (location: GymLocation) => {
-    const lockedLocation = { ...location, dwellMinutesRequired: FIXED_DWELL_MINUTES };
+    const lockedLocation = {
+      ...location,
+      radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Fixed at 300m
+      dwellMinutesRequired: FIXED_DWELL_MINUTES, // Fixed at 15m
+    };
     const updatedPrefs = { ...preferences, gymLocation: lockedLocation };
     setPreferences(updatedPrefs);
     await storageService.savePreferences(updatedPrefs);
@@ -306,6 +335,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         currentDistanceMeters,
         isLoading,
         setWeeklyGoal,
+        scheduleGoalForMonday,
+        cancelPendingGoal,
         updateGymLocation,
         refreshLocation,
         simulateEnterGym,

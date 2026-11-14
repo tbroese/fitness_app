@@ -1,5 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { UserPreferences, WorkoutSession, StreakState, GymLocation, FIXED_DWELL_MINUTES } from '../types/fitness';
+import {
+  UserPreferences,
+  WorkoutSession,
+  StreakState,
+  GymLocation,
+  FIXED_DWELL_MINUTES,
+  DEFAULT_GEOFENCE_RADIUS_METERS,
+} from '../types/fitness';
 import { getIsoWeekId } from '../utils/dateUtils';
 
 const STORAGE_KEYS = {
@@ -9,13 +16,14 @@ const STORAGE_KEYS = {
 };
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
-  weeklyGoal: 4, // 4 workouts per week by default
+  weeklyGoal: 1, // Default starts at 1 workout per week
+  pendingWeeklyGoal: null,
   gymLocation: {
     id: 'default_gym',
     name: 'Metropolis Fitness Club',
     latitude: 37.7749, // default SF or customizable
     longitude: -122.4194,
-    radiusMeters: 150,
+    radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // 300m default
     dwellMinutesRequired: FIXED_DWELL_MINUTES,
   },
   dwellDurationMinutes: FIXED_DWELL_MINUTES,

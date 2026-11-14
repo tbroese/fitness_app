@@ -17,14 +17,16 @@ import {
   setupGymGeofence,
 } from '../../services/locationService';
 import { theme } from '../../constants/theme';
-import { FIXED_DWELL_MINUTES } from '../../types/fitness';
-import {
-  formatDateToYYYYMMDD,
-  getAvailableWorkoutDaysRemaining,
-} from '../../utils/dateUtils';
+import { FIXED_DWELL_MINUTES, DEFAULT_GEOFENCE_RADIUS_METERS } from '../../types/fitness';
 
 export default function GoalSetupScreen() {
-  const { preferences, streakState, workouts, setWeeklyGoal, updateGymLocation } = useFitness();
+  const {
+    preferences,
+    setWeeklyGoal,
+    scheduleGoalForMonday,
+    cancelPendingGoal,
+    updateGymLocation,
+  } = useFitness();
 
   const [selectedGoal, setSelectedGoal] = useState<number>(preferences.weeklyGoal);
   const [gymName, setGymName] = useState<string>(preferences.gymLocation?.name || 'My Local Gym');
@@ -34,16 +36,14 @@ export default function GoalSetupScreen() {
   const [lon, setLon] = useState<string>(
     preferences.gymLocation ? String(preferences.gymLocation.longitude) : '-122.4194'
   );
-  const [radius, setRadius] = useState<number>(preferences.gymLocation?.radiusMeters || 150);
   const [isLocating, setIsLocating] = useState(false);
 
-  // Sync selected goal whenever preferences changes to eliminate any lag or stale state
+  // Sync selected goal with current active weekly goal
   useEffect(() => {
     setSelectedGoal(preferences.weeklyGoal);
   }, [preferences.weeklyGoal]);
 
   const goalOptions = [1, 2, 3, 4, 5, 6, 7];
-  const radiusOptions = [100, 150, 200, 300];
 
   const handleSelectGoal = async (newGoal: number) => {
     if (newGoal === preferences.weeklyGoal) return;
@@ -51,23 +51,25 @@ export default function GoalSetupScreen() {
     // Check if today is Monday (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
     const isMonday = new Date().getDay() === 1;
 
-    // Warning 1: Decreasing day goal not on Monday will reset streak
-    if (newGoal < preferences.weeklyGoal && !isMonday) {
+    // Mid-week adjustment is strictly disallowed: only Cancel or Update Starting Monday
+    if (!isMonday) {
       Alert.alert(
-        'Warning: Mid-Week Goal Decrease',
-        'Decreasing your weekly goal on any day other than Monday will immediately reset your current streak to 0!\n\nTo protect your streak, goal decreases can only be made on Monday without penalty.\n\nDo you want to proceed and reset your streak?',
+        'Mid-Week Adjustment Not Allowed',
+        `Weekly goals cannot be changed mid-week. You can keep your current goal of ${preferences.weeklyGoal} workout(s) this week or schedule this update to start next Monday.\n\nWould you like to update your goal to ${newGoal} workout(s) starting next Monday?`,
         [
           {
             text: 'Cancel',
             style: 'cancel',
-            onPress: () => setSelectedGoal(preferences.weeklyGoal),
           },
           {
-            text: 'Reset & Change Goal',
-            style: 'destructive',
+            text: 'Update Starting Monday',
+            style: 'default',
             onPress: async () => {
-              setSelectedGoal(newGoal);
-              await setWeeklyGoal(newGoal, true); // true = force reset streak
+              await scheduleGoalForMonday(newGoal);
+              Alert.alert(
+                'Goal Scheduled',
+                `Your goal will update to ${newGoal} workout(s)/week starting next Monday.`
+              );
             },
           },
         ]
@@ -75,41 +77,15 @@ export default function GoalSetupScreen() {
       return;
     }
 
-    // Warning 2: Increasing days will make the streak impossible for current week
-    if (newGoal > preferences.weeklyGoal) {
-      const todayStr = formatDateToYYYYMMDD(new Date());
-      const workedOutToday = workouts.some((w) => w.dateString === todayStr);
-      const daysAvailable = getAvailableWorkoutDaysRemaining(new Date(), workedOutToday);
-      const currentWeekWorkouts = streakState.currentWeekWorkouts;
-      const maxPossibleWorkouts = currentWeekWorkouts + daysAvailable;
-
-      if (newGoal > maxPossibleWorkouts) {
-        Alert.alert(
-          'Warning: Goal Exceeds Remaining Days',
-          `Increasing your goal to ${newGoal} days is impossible to achieve with only ${daysAvailable} day(s) left in the week (current: ${currentWeekWorkouts}/${newGoal}).\n\nThis will immediately cause your streak to be lost!\n\nDo you still want to proceed?`,
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => setSelectedGoal(preferences.weeklyGoal),
-            },
-            {
-              text: 'Proceed Anyway',
-              style: 'destructive',
-              onPress: async () => {
-                setSelectedGoal(newGoal);
-                await setWeeklyGoal(newGoal, false);
-              },
-            },
-          ]
-        );
-        return;
-      }
-    }
-
-    // Immediate change when valid
+    // On Monday, update immediately for the new week
     setSelectedGoal(newGoal);
-    await setWeeklyGoal(newGoal, false);
+    await setWeeklyGoal(newGoal);
+    Alert.alert('Goal Updated', `Your weekly goal is now ${newGoal} workout(s)/week.`);
+  };
+
+  const handleCancelPending = async () => {
+    await cancelPendingGoal();
+    Alert.alert('Canceled', 'The scheduled Monday goal change has been canceled.');
   };
 
   const handleUseCurrentLocation = async () => {
@@ -158,14 +134,14 @@ export default function GoalSetupScreen() {
       name: gymName.trim() || 'My Gym',
       latitude: parsedLat,
       longitude: parsedLon,
-      radiusMeters: radius,
-      dwellMinutesRequired: FIXED_DWELL_MINUTES,
+      radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Fixed at 300m
+      dwellMinutesRequired: FIXED_DWELL_MINUTES, // Fixed at 15m
     };
 
     await updateGymLocation(newGym);
     setupGymGeofence(newGym);
 
-    Alert.alert('Saved!', `Gym "${newGym.name}" configured with ${radius}m geofence and ${FIXED_DWELL_MINUTES}m required dwell.`);
+    Alert.alert('Saved!', `Gym "${newGym.name}" has been configured.`);
   };
 
   return (
@@ -178,57 +154,83 @@ export default function GoalSetupScreen() {
             <Text style={styles.sectionTitle}>Weekly Workout Goal</Text>
           </View>
           <Text style={styles.sectionDesc}>
-            Select how many workouts you plan to do each week. Changes take effect immediately.
+            Select how many workouts you commit to each week. Goals can only be changed on Monday; mid-week requests take effect the following Monday.
           </Text>
 
           {/* Goal selection pills */}
           <View style={styles.goalRow}>
-            {goalOptions.map((g) => (
-              <TouchableOpacity
-                key={g}
-                style={[styles.goalPill, selectedGoal === g && styles.goalPillSelected]}
-                onPress={() => handleSelectGoal(g)}
-              >
-                <Text style={[styles.goalPillText, selectedGoal === g && styles.goalPillTextSelected]}>
-                  {g}
+            {goalOptions.map((g) => {
+              const isCurrent = preferences.weeklyGoal === g;
+              const isPending = preferences.pendingWeeklyGoal === g;
+              return (
+                <TouchableOpacity
+                  key={g}
+                  style={[
+                    styles.goalPill,
+                    isCurrent && styles.goalPillSelected,
+                    isPending && !isCurrent && styles.goalPillPending,
+                  ]}
+                  onPress={() => handleSelectGoal(g)}
+                >
+                  <Text
+                    style={[
+                      styles.goalPillText,
+                      isCurrent && styles.goalPillTextSelected,
+                      isPending && !isCurrent && styles.goalPillTextPending,
+                    ]}
+                  >
+                    {g}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.goalPillSub,
+                      isCurrent && styles.goalPillSubSelected,
+                      isPending && !isCurrent && styles.goalPillSubPending,
+                    ]}
+                  >
+                    {isPending ? 'Next Mon' : g === 1 ? 'day' : 'days'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Scheduled Monday Goal Banner */}
+          {preferences.pendingWeeklyGoal ? (
+            <View style={styles.pendingBanner}>
+              <View style={styles.pendingTextCol}>
+                <View style={styles.pendingHeaderRow}>
+                  <Ionicons name="calendar" size={16} color={theme.warning} />
+                  <Text style={styles.pendingTitle}>Update Scheduled for Monday</Text>
+                </View>
+                <Text style={styles.pendingSub}>
+                  Your goal will change to {preferences.pendingWeeklyGoal} workouts/week starting next Monday.
                 </Text>
-                <Text style={[styles.goalPillSub, selectedGoal === g && styles.goalPillSubSelected]}>
-                  {g === 1 ? 'day' : 'days'}
-                </Text>
+              </View>
+              <TouchableOpacity onPress={handleCancelPending} style={styles.cancelPendingBtn}>
+                <Text style={styles.cancelPendingBtnText}>Cancel</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.goalSummaryBox}>
-            <Text style={styles.goalSummaryText}>
-              Target: <Text style={{ fontWeight: '800', color: theme.primaryLight }}>{selectedGoal} workouts per week</Text>
-            </Text>
-            <Text style={styles.goalSummarySub}>
-              {selectedGoal >= 5
-                ? '🔥 High intensity: true dedication to athletic performance.'
-                : selectedGoal >= 3
-                ? '💪 Balanced: great for sustainable habit building.'
-                : '🌱 Starting foundation: consistency is key.'}
-            </Text>
-          </View>
-
-          {/* Rule Reminder Alert */}
-          <View style={styles.ruleReminderBox}>
-            <Ionicons name="shield-checkmark-outline" size={16} color={theme.warning} />
-            <Text style={styles.ruleReminderText}>
-              Goal Rule: Decreasing your goal mid-week (Tue–Sun) resets your streak to 0. Adjust goals on Monday to protect your streak.
-            </Text>
-          </View>
+            </View>
+          ) : (
+            <View style={styles.goalSummaryBox}>
+              <Text style={styles.goalSummaryText}>
+                Active Goal: <Text style={{ fontWeight: '800', color: theme.primaryLight }}>{preferences.weeklyGoal} workout{preferences.weeklyGoal > 1 ? 's' : ''} per week</Text>
+              </Text>
+              <Text style={styles.goalSummarySub}>
+                Mid-week changes take effect automatically the next Monday to protect your streak.
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Section 2: Gym Location & Geofence */}
+        {/* Section 2: Gym Location Setup (Radius is completely hidden) */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Ionicons name="location-outline" size={22} color={theme.primaryLight} />
-            <Text style={styles.sectionTitle}>Gym Location & Geofence</Text>
+            <Text style={styles.sectionTitle}>Gym Location</Text>
           </View>
           <Text style={styles.sectionDesc}>
-            Set your gym coordinates. GPS requires remaining at the gym for {FIXED_DWELL_MINUTES} minutes to automatically complete a workout.
+            Set your gym coordinates. The app will automatically detect your arrival and verify your workout when you stay for {FIXED_DWELL_MINUTES} minutes.
           </Text>
 
           {/* Gym Name */}
@@ -276,33 +278,6 @@ export default function GoalSetupScreen() {
                 placeholder="-122.4194"
                 placeholderTextColor={theme.textTertiary}
               />
-            </View>
-          </View>
-
-          {/* Geofence Radius */}
-          <Text style={styles.fieldLabel}>Geofence Radius (Meters)</Text>
-          <View style={styles.pillRow}>
-            {radiusOptions.map((r) => (
-              <TouchableOpacity
-                key={r}
-                style={[styles.smallPill, radius === r && styles.smallPillActive]}
-                onPress={() => setRadius(r)}
-              >
-                <Text style={[styles.smallPillText, radius === r && styles.smallPillTextActive]}>
-                  {r}m
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Fixed Dwell Time Notice (Non-configurable) */}
-          <View style={styles.fixedDwellNotice}>
-            <Ionicons name="timer" size={18} color={theme.primaryLight} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.fixedDwellTitle}>Verification Requirement: {FIXED_DWELL_MINUTES} Minutes</Text>
-              <Text style={styles.fixedDwellSub}>
-                To ensure accountability, workouts cannot be logged manually. You must remain inside the gym perimeter for at least {FIXED_DWELL_MINUTES} minutes.
-              </Text>
             </View>
           </View>
 
@@ -378,6 +353,11 @@ const styles = StyleSheet.create({
     backgroundColor: theme.primary,
     borderColor: theme.primary,
   },
+  goalPillPending: {
+    borderColor: theme.warning,
+    borderWidth: 1.5,
+    backgroundColor: theme.warningMuted,
+  },
   goalPillText: {
     fontSize: 18,
     fontWeight: '800',
@@ -386,14 +366,62 @@ const styles = StyleSheet.create({
   goalPillTextSelected: {
     color: '#FFFFFF',
   },
+  goalPillTextPending: {
+    color: theme.warning,
+  },
   goalPillSub: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
     color: theme.textSecondary,
     marginTop: 2,
   },
   goalPillSubSelected: {
     color: 'rgba(255,255,255,0.85)',
+  },
+  goalPillSubPending: {
+    color: theme.warning,
+    fontWeight: '700',
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.warningMuted,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+  },
+  pendingTextCol: {
+    flex: 1,
+    marginRight: 10,
+  },
+  pendingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pendingTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.warning,
+  },
+  pendingSub: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  cancelPendingBtn: {
+    backgroundColor: 'rgba(245, 158, 11, 0.25)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  cancelPendingBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.warning,
   },
   goalSummaryBox: {
     backgroundColor: theme.cardBackgroundSubtle,
@@ -410,24 +438,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.textSecondary,
     marginTop: 4,
-  },
-  ruleReminderBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: theme.warningMuted,
-    padding: 10,
-    borderRadius: 10,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  ruleReminderText: {
-    fontSize: 11,
-    color: theme.warning,
-    flex: 1,
-    lineHeight: 15,
-    fontWeight: '500',
   },
   fieldLabel: {
     fontSize: 13,
@@ -466,54 +476,6 @@ const styles = StyleSheet.create({
   coordRow: {
     flexDirection: 'row',
     gap: 12,
-  },
-  pillRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 4,
-  },
-  smallPill: {
-    flex: 1,
-    backgroundColor: theme.cardBackgroundSubtle,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-  },
-  smallPillActive: {
-    backgroundColor: theme.primary,
-    borderColor: theme.primary,
-  },
-  smallPillText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.textSecondary,
-  },
-  smallPillTextActive: {
-    color: '#FFFFFF',
-  },
-  fixedDwellNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: theme.cardBackgroundSubtle,
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-  },
-  fixedDwellTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.primaryLight,
-  },
-  fixedDwellSub: {
-    fontSize: 11,
-    color: theme.textSecondary,
-    marginTop: 2,
-    lineHeight: 16,
   },
   saveBtn: {
     flexDirection: 'row',

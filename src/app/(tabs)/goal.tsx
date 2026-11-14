@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView,
   View,
@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
 import {
@@ -28,13 +29,17 @@ export default function GoalSetupScreen() {
     updateGymLocation,
   } = useFitness();
 
+  const { scrollTo, t } = useLocalSearchParams<{ scrollTo?: string; t?: string }>();
+  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const pendingScrollToBottomRef = useRef(false);
+
   const [selectedGoal, setSelectedGoal] = useState<number>(preferences.weeklyGoal);
-  const [gymName, setGymName] = useState<string>(preferences.gymLocation?.name || 'My Local Gym');
+  const [gymName, setGymName] = useState<string>(preferences.gymLocation?.name || '');
   const [lat, setLat] = useState<string>(
-    preferences.gymLocation ? String(preferences.gymLocation.latitude) : '37.7749'
+    preferences.gymLocation ? String(preferences.gymLocation.latitude) : ''
   );
   const [lon, setLon] = useState<string>(
-    preferences.gymLocation ? String(preferences.gymLocation.longitude) : '-122.4194'
+    preferences.gymLocation ? String(preferences.gymLocation.longitude) : ''
   );
   const [isLocating, setIsLocating] = useState(false);
 
@@ -42,6 +47,27 @@ export default function GoalSetupScreen() {
   useEffect(() => {
     setSelectedGoal(preferences.weeklyGoal);
   }, [preferences.weeklyGoal]);
+
+  // Sync gym fields when saved gymLocation changes
+  useEffect(() => {
+    if (preferences.gymLocation) {
+      setGymName(preferences.gymLocation.name);
+      setLat(String(preferences.gymLocation.latitude));
+      setLon(String(preferences.gymLocation.longitude));
+    }
+  }, [preferences.gymLocation]);
+
+  // Scroll to bottom when navigated from "Setup Gym Location" box
+  useEffect(() => {
+    if (scrollTo === 'gym') {
+      pendingScrollToBottomRef.current = true;
+      const timer = setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+        pendingScrollToBottomRef.current = false;
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [scrollTo, t]);
 
   const goalOptions = [1, 2, 3, 4, 5, 6, 7];
 
@@ -146,7 +172,17 @@ export default function GoalSetupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        onContentSizeChange={() => {
+          if (pendingScrollToBottomRef.current) {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+            pendingScrollToBottomRef.current = false;
+          }
+        }}
+      >
         {/* Section 1: Weekly Goal */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>

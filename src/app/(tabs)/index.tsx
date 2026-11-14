@@ -126,7 +126,12 @@ export default function DashboardScreen() {
           dwellState={dwellState}
           distanceMeters={currentDistanceMeters}
           onRefreshLocation={refreshLocation}
-          onOpenGymSettings={() => router.push('/goal')}
+          onOpenGymSettings={() =>
+            router.push({
+              pathname: '/goal',
+              params: { scrollTo: 'gym', t: String(Date.now()) },
+            })
+          }
         />
 
         {/* Info Banner on streak mechanics */}

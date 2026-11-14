@@ -28,18 +28,25 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
 
   if (!gym) {
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={onOpenGymSettings}
+        activeOpacity={0.85}
+      >
         <View style={styles.emptyContainer}>
-          <Ionicons name="location-outline" size={40} color={theme.textTertiary} />
-          <Text style={styles.emptyTitle}>No Gym Configured</Text>
+          <View style={styles.setupIconCircle}>
+            <Ionicons name="location-outline" size={28} color={theme.primaryLight} />
+          </View>
+          <Text style={styles.emptyTitle}>Setup Gym Location</Text>
           <Text style={styles.emptySub}>
-            Set your gym location so the app can automatically detect workouts and track streaks.
+            Set your gym location so the app can automatically detect workouts and track your streak.
           </Text>
-          <TouchableOpacity style={styles.setupBtn} onPress={onOpenGymSettings}>
-            <Text style={styles.setupBtnText}>Configure Gym Location</Text>
-          </TouchableOpacity>
+          <View style={styles.setupBtn}>
+            <Text style={styles.setupBtnText}>Setup Gym Location</Text>
+            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+          </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 
@@ -151,11 +158,22 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
+  },
+  setupIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.primaryMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.35)',
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.textPrimary,
     marginTop: 8,
   },
@@ -165,9 +183,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     marginBottom: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    lineHeight: 18,
   },
   setupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: theme.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,

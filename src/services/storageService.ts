@@ -41,14 +41,7 @@ export function createDefaultUserProfile(): UserProfile {
 export const DEFAULT_PREFERENCES: UserPreferences = {
   weeklyGoal: 1, // Default starts at 1 workout per week
   pendingWeeklyGoal: null,
-  gymLocation: {
-    id: 'default_gym',
-    name: 'Metropolis Fitness Club',
-    latitude: 37.7749, // default SF or customizable
-    longitude: -122.4194,
-    radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // 300m default
-    dwellMinutesRequired: FIXED_DWELL_MINUTES,
-  },
+  gymLocation: null,
   dwellDurationMinutes: FIXED_DWELL_MINUTES,
   autoDetectGym: true,
 };
@@ -109,7 +102,18 @@ export const storageService = {
   async getPreferences(): Promise<UserPreferences> {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.PREFERENCES);
-      return data ? { ...DEFAULT_PREFERENCES, ...JSON.parse(data) } : DEFAULT_PREFERENCES;
+      if (!data) {
+        return DEFAULT_PREFERENCES;
+      }
+      const parsed = JSON.parse(data);
+      if (
+        parsed.gymLocation &&
+        (parsed.gymLocation.id === 'default_gym' ||
+          parsed.gymLocation.name === 'Metropolis Fitness Club')
+      ) {
+        parsed.gymLocation = null;
+      }
+      return { ...DEFAULT_PREFERENCES, ...parsed };
     } catch {
       return DEFAULT_PREFERENCES;
     }

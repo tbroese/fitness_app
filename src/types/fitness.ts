@@ -13,6 +13,8 @@ export interface UserProfile {
 export interface GymLocation {
   id: string;
   name: string;
+  address?: string;
+  isPartnered?: boolean;
   latitude: number;
   longitude: number;
   radiusMeters: number; // Fixed at 300m

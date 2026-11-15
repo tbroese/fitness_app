@@ -15,6 +15,8 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "We use background location to automatically detect when you visit the gym and keep your streak updated.",
         "UIBackgroundModes": [
           "location",
+          "fetch",
+          "location",
           "fetch"
         ]
       }
@@ -32,6 +34,9 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION"
       ]
     },
@@ -46,6 +51,12 @@
       "eas": {
         "projectId": "931f71b9-391a-403e-a994-654cc615b2c5"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/931f71b9-391a-403e-a994-654cc615b2c5"
     }
   }
 }

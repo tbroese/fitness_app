@@ -1,14 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
+import { RemoteLeaderboardUser } from '../../services/cloud';
 import { theme } from '../../constants/theme';
 
 type LeaderboardCategory = 'global' | 'gym' | 'friends';
@@ -54,10 +56,44 @@ function formatGymTime(minutes: number): string {
 }
 
 export default function LeaderboardScreen() {
-  const { userProfile, preferences, streakState, workouts } = useFitness();
+  const {
+    userProfile,
+    preferences,
+    streakState,
+    workouts,
+    isCloudConfigured,
+    syncToCloud,
+    fetchLeaderboardEntries,
+  } = useFitness();
 
   const [selectedCategory, setSelectedCategory] = useState<LeaderboardCategory>('global');
   const [selectedFilter, setSelectedFilter] = useState<LeaderboardFilter>('currentStreak');
+  const [remoteUsers, setRemoteUsers] = useState<RemoteLeaderboardUser[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadLeaderboard = useCallback(async () => {
+    if (!isCloudConfigured) {
+      setRemoteUsers([]);
+      return;
+    }
+    try {
+      await syncToCloud();
+      const fetched = await fetchLeaderboardEntries(selectedCategory);
+      setRemoteUsers(fetched);
+    } catch (e) {
+      console.warn('Failed to load remote leaderboard:', e);
+    }
+  }, [isCloudConfigured, syncToCloud, fetchLeaderboardEntries, selectedCategory]);
+
+  useEffect(() => {
+    loadLeaderboard();
+  }, [loadLeaderboard]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadLeaderboard();
+    setRefreshing(false);
+  };
 
   const totalGymTimeMinutes = useMemo(
     () => workouts.reduce((sum, w) => sum + (w.durationMinutes || 0), 0),
@@ -77,15 +113,31 @@ export default function LeaderboardScreen() {
     [userProfile, preferences.gymLocation, streakState, totalGymTimeMinutes]
   );
 
-  // Each subcategory currently contains the current user's data, sorted by the active filter
+  // Merge remote users with the current user's live data and sort by the active filter
   const entries = useMemo(() => {
-    const categoryEntries: Record<LeaderboardCategory, LeaderboardEntry[]> = {
-      global: [currentUserEntry],
-      gym: [currentUserEntry],
-      friends: [currentUserEntry],
-    };
+    const otherEntries: LeaderboardEntry[] = remoteUsers
+      .filter((u) => u.id !== currentUserEntry.id)
+      .filter((u) => {
+        if (selectedCategory === 'gym') {
+          if (!preferences.gymLocation?.name) return false;
+          return (
+            u.gymName.toLowerCase() === preferences.gymLocation.name.toLowerCase() ||
+            (preferences.gymLocation.id && u.gymId === preferences.gymLocation.id)
+          );
+        }
+        return true;
+      })
+      .map((u) => ({
+        id: u.id,
+        name: u.fullName || 'Athlete',
+        isCurrentUser: false,
+        gymName: u.gymName || 'No Gym Selected',
+        currentStreak: u.currentStreak,
+        bestStreak: u.bestStreak,
+        totalGymTimeMinutes: u.totalGymTimeMinutes,
+      }));
 
-    const list = [...categoryEntries[selectedCategory]];
+    const list = [currentUserEntry, ...otherEntries];
     list.sort((a, b) => {
       if (selectedFilter === 'currentStreak') {
         return b.currentStreak - a.currentStreak;
@@ -96,7 +148,7 @@ export default function LeaderboardScreen() {
       return b.totalGymTimeMinutes - a.totalGymTimeMinutes;
     });
     return list;
-  }, [currentUserEntry, selectedCategory, selectedFilter]);
+  }, [remoteUsers, currentUserEntry, selectedCategory, selectedFilter, preferences.gymLocation]);
 
   const getCategorySubtitle = (): string => {
     if (selectedCategory === 'global') {
@@ -306,6 +358,13 @@ export default function LeaderboardScreen() {
           keyExtractor={(item) => `${selectedCategory}-${item.id}`}
           renderItem={renderLeaderboardItem}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.primaryLight}
+            />
+          }
         />
       </View>
     </SafeAreaView>

@@ -25,6 +25,10 @@ import {
   getCurrentCoordinates,
   subscribeToLocationUpdates,
 } from '../services/locationService';
+import {
+  cloudDatabase,
+  RemoteLeaderboardUser,
+} from '../services/cloud';
 import { formatDateToYYYYMMDD, getIsoWeekId } from '../utils/dateUtils';
 
 interface FitnessContextType {
@@ -35,12 +39,18 @@ interface FitnessContextType {
   dwellState: DwellSessionState;
   currentDistanceMeters: number | null;
   isLoading: boolean;
+  isCloudConfigured: boolean;
+  isSyncingCloud: boolean;
   updateUserProfile: (fullName: string) => Promise<void>;
   setWeeklyGoal: (goal: number) => Promise<void>;
   scheduleGoalForMonday: (goal: number) => Promise<void>;
   cancelPendingGoal: () => Promise<void>;
   updateGymLocation: (location: GymLocation) => Promise<void>;
   refreshLocation: () => Promise<void>;
+  syncToCloud: () => Promise<void>;
+  fetchLeaderboardEntries: (
+    category: 'global' | 'gym' | 'friends'
+  ) => Promise<RemoteLeaderboardUser[]>;
   simulateEnterGym: () => void;
   simulateDwellProgress: (minutes: number) => void;
   simulateLeaveGym: () => void;
@@ -57,6 +67,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
   const [currentDistanceMeters, setCurrentDistanceMeters] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
   const [dwellState, setDwellState] = useState<DwellSessionState>(DEFAULT_DWELL_SESSION);
 
@@ -65,6 +76,92 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const userProfileRef = useRef(userProfile);
   userProfileRef.current = userProfile;
+
+  const streakStateRef = useRef(streakState);
+  streakStateRef.current = streakState;
+
+  const workoutsRef = useRef(workouts);
+  workoutsRef.current = workouts;
+
+  const syncSnapshotToCloud = useCallback(
+    async (
+      profileSnap: UserProfile,
+      prefsSnap: UserPreferences,
+      streakSnap: StreakState,
+      workoutsSnap: WorkoutSession[]
+    ) => {
+      if (!cloudDatabase.isConfigured() || !profileSnap.fullName.trim()) {
+        return;
+      }
+
+      setIsSyncingCloud(true);
+      try {
+        const totalGymTimeMinutes = workoutsSnap.reduce(
+          (sum, w) => sum + (w.durationMinutes || 0),
+          0
+        );
+        const unsyncedWorkouts = workoutsSnap.filter((w) => !w.synced);
+
+        const result = await cloudDatabase.syncUserStats({
+          userId: profileSnap.id,
+          fullName: profileSnap.fullName,
+          gymId: prefsSnap.gymLocation?.id || null,
+          gymName: prefsSnap.gymLocation?.name || null,
+          currentStreak: streakSnap.currentStreak,
+          bestStreak: streakSnap.bestStreak,
+          totalGymTimeMinutes,
+          workoutsCount: workoutsSnap.length,
+          weeklyGoal: prefsSnap.weeklyGoal,
+          unsyncedWorkouts,
+        });
+
+        if (result.success) {
+          const syncedAt = new Date().toISOString();
+          const updatedProfile: UserProfile = {
+            ...profileSnap,
+            syncedAt,
+          };
+          await storageService.saveUserProfile(updatedProfile);
+          setUserProfile(updatedProfile);
+
+          if (result.syncedWorkoutIds.length > 0) {
+            const syncedSet = new Set(result.syncedWorkoutIds);
+            const markedWorkouts = workoutsSnap.map((w) =>
+              syncedSet.has(w.id) ? { ...w, synced: true } : w
+            );
+            await storageService.saveWorkouts(markedWorkouts);
+            setWorkouts(markedWorkouts);
+          }
+        }
+      } catch (e) {
+        console.warn('Cloud sync failed:', e);
+      } finally {
+        setIsSyncingCloud(false);
+      }
+    },
+    []
+  );
+
+  const syncToCloud = useCallback(async () => {
+    await syncSnapshotToCloud(
+      userProfileRef.current,
+      preferencesRef.current,
+      streakStateRef.current,
+      workoutsRef.current
+    );
+  }, [syncSnapshotToCloud]);
+
+  const fetchLeaderboardEntries = useCallback(
+    async (category: 'global' | 'gym' | 'friends'): Promise<RemoteLeaderboardUser[]> => {
+      const gym = preferencesRef.current.gymLocation;
+      return cloudDatabase.fetchLeaderboard({
+        category,
+        gymId: gym?.id || null,
+        gymName: gym?.name || null,
+      });
+    },
+    []
+  );
 
   // Load state, profile, persisted dwell session, and perform weekly evaluation
   const loadData = useCallback(async () => {
@@ -117,18 +214,26 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setWorkouts(dwellEval.workouts);
       setStreakState(dwellEval.streakState);
       setDwellState(dwellEval.dwellSession);
+
+      // Push latest stats to cloud database in background
+      syncSnapshotToCloud(
+        savedProfile,
+        savedPrefs,
+        dwellEval.streakState,
+        dwellEval.workouts
+      );
     } catch (e) {
       console.error('Failed to load initial fitness data', e);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [syncSnapshotToCloud]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Save user's Full Name locally on device
+  // Save user's Full Name locally on device & sync to cloud
   const updateUserProfile = async (fullName: string) => {
     const trimmed = fullName.trim();
     const updatedProfile: UserProfile = {
@@ -140,6 +245,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const saved = await storageService.saveUserProfile(updatedProfile);
     setUserProfile(saved);
+    await syncSnapshotToCloud(saved, preferences, streakState, workouts);
   };
 
   // Helper to apply GPS proximity check and persist dwell state to AsyncStorage
@@ -153,7 +259,16 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setDwellState(evalResult.dwellSession);
       setStreakState(evalResult.streakState);
       setWorkouts(evalResult.workouts);
+      if (evalResult.completedNow) {
+        syncSnapshotToCloud(
+          userProfileRef.current,
+          preferencesRef.current,
+          evalResult.streakState,
+          evalResult.workouts
+        );
+      }
     } else {
+      const wasDwelling = dwellState.isDwelling;
       const exitedSession = await storageService.handleBackgroundGeofenceExit();
       const [latestStreak, latestWorkouts] = await Promise.all([
         storageService.getStreakState(),
@@ -162,8 +277,16 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setDwellState(exitedSession);
       setStreakState(latestStreak);
       setWorkouts(latestWorkouts);
+      if (wasDwelling && exitedSession.completedToday) {
+        syncSnapshotToCloud(
+          userProfileRef.current,
+          preferencesRef.current,
+          latestStreak,
+          latestWorkouts
+        );
+      }
     }
-  }, []);
+  }, [dwellState.isDwelling, syncSnapshotToCloud]);
 
   // Check current GPS location against gym
   const refreshLocation = useCallback(async () => {
@@ -244,10 +367,18 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setDwellState(evalResult.dwellSession);
       setStreakState(evalResult.streakState);
       setWorkouts(evalResult.workouts);
+      if (evalResult.completedNow) {
+        syncSnapshotToCloud(
+          userProfileRef.current,
+          preferencesRef.current,
+          evalResult.streakState,
+          evalResult.workouts
+        );
+      }
     }, 5000); // Ticks every 5 seconds
 
     return () => clearInterval(interval);
-  }, [dwellState.isDwelling, dwellState.enteredAt]);
+  }, [dwellState.isDwelling, dwellState.enteredAt, syncSnapshotToCloud]);
 
   // Update weekly goal immediately (e.g. on Monday)
   const setWeeklyGoal = async (goal: number) => {
@@ -268,6 +399,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const reEvaluated = evaluateWeeklyReset(streakState, updatedPrefs, workouts, new Date());
     setStreakState(reEvaluated);
     await storageService.saveStreakState(reEvaluated);
+    await syncSnapshotToCloud(userProfile, updatedPrefs, reEvaluated, workouts);
   };
 
   // Schedule weekly goal to update starting next Monday
@@ -301,6 +433,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setPreferences(updatedPrefs);
     await storageService.savePreferences(updatedPrefs);
     refreshLocation();
+    await syncSnapshotToCloud(userProfile, updatedPrefs, streakState, workouts);
   };
 
   // Simulation controls (persists to AsyncStorage and keeps tracking past 15 mins while inside gym)
@@ -330,6 +463,12 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setStreakState(evalResult.streakState);
     setWorkouts(evalResult.workouts);
     setCurrentDistanceMeters(10);
+    await syncSnapshotToCloud(
+      userProfile,
+      preferences,
+      evalResult.streakState,
+      evalResult.workouts
+    );
   };
 
   const simulateLeaveGym = async () => {
@@ -342,6 +481,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setStreakState(latestStreak);
     setWorkouts(latestWorkouts);
     setCurrentDistanceMeters(2500); // 2.5 km away
+    await syncSnapshotToCloud(userProfile, preferences, latestStreak, latestWorkouts);
   };
 
   // Test simulation: jump week and see reset behavior
@@ -404,12 +544,16 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         dwellState,
         currentDistanceMeters,
         isLoading,
+        isCloudConfigured: cloudDatabase.isConfigured(),
+        isSyncingCloud,
         updateUserProfile,
         setWeeklyGoal,
         scheduleGoalForMonday,
         cancelPendingGoal,
         updateGymLocation,
         refreshLocation,
+        syncToCloud,
+        fetchLeaderboardEntries,
         simulateEnterGym,
         simulateDwellProgress,
         simulateLeaveGym,

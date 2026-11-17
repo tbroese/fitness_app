@@ -13,10 +13,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
 import { RemoteLeaderboardUser } from '../../services/cloud';
+import { WeightUnit } from '../../types/fitness';
+import { formatWeightWithUnit } from '../../utils/weightUtils';
 import { theme } from '../../constants/theme';
 
 type LeaderboardCategory = 'global' | 'gym' | 'friends';
-type LeaderboardFilter = 'currentStreak' | 'bestStreak' | 'totalGymTime';
+type LeaderboardFilter =
+  | 'currentStreak'
+  | 'bestStreak'
+  | 'totalGymTime'
+  | 'total'
+  | 'squat'
+  | 'bench'
+  | 'deadlift';
 
 interface LeaderboardEntry {
   id: string;
@@ -27,6 +36,10 @@ interface LeaderboardEntry {
   currentStreak: number;
   bestStreak: number;
   totalGymTimeMinutes: number;
+  squatPrKg: number;
+  benchPrKg: number;
+  deadliftPrKg: number;
+  totalPrKg: number;
 }
 
 const CATEGORIES: {
@@ -46,7 +59,11 @@ const FILTERS: {
 }[] = [
     { key: 'currentStreak', label: 'Current Streak', icon: 'flame-outline' },
     { key: 'bestStreak', label: 'Best Streak', icon: 'trophy-outline' },
-    { key: 'totalGymTime', label: 'Total Gym Time', icon: 'time-outline' },
+    { key: 'totalGymTime', label: 'Gym Time', icon: 'time-outline' },
+    { key: 'total', label: 'Total', icon: 'podium-outline' },
+    { key: 'squat', label: 'Squat', icon: 'barbell-outline' },
+    { key: 'bench', label: 'Bench', icon: 'barbell-outline' },
+    { key: 'deadlift', label: 'Deadlift', icon: 'barbell-outline' },
   ];
 
 function formatGymTime(minutes: number): string {
@@ -72,12 +89,27 @@ export default function LeaderboardScreen() {
     searchUsersForFriend,
     sendFriendRequestToUser,
     respondToFriendRequest,
+    setPreferredWeightUnit,
   } = useFitness();
 
   const [selectedCategory, setSelectedCategory] = useState<LeaderboardCategory>('global');
   const [selectedFilter, setSelectedFilter] = useState<LeaderboardFilter>('currentStreak');
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>(
+    userProfile.preferredWeightUnit || 'lbs'
+  );
   const [remoteUsers, setRemoteUsers] = useState<RemoteLeaderboardUser[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (userProfile.preferredWeightUnit) {
+      setWeightUnit(userProfile.preferredWeightUnit);
+    }
+  }, [userProfile.preferredWeightUnit]);
+
+  const handleToggleWeightUnit = (unit: WeightUnit) => {
+    setWeightUnit(unit);
+    setPreferredWeightUnit(unit);
+  };
 
   // Friend search state
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
@@ -141,16 +173,25 @@ export default function LeaderboardScreen() {
   );
 
   const currentUserEntry: LeaderboardEntry = useMemo(
-    () => ({
-      id: userProfile.id || 'current-user',
-      name: userProfile.fullName || 'You',
-      userTag: userProfile.userTag || '4821',
-      isCurrentUser: true,
-      gymName: preferences.gymLocation?.name || 'No Gym Selected',
-      currentStreak: streakState.currentStreak,
-      bestStreak: streakState.bestStreak,
-      totalGymTimeMinutes,
-    }),
+    () => {
+      const squat = userProfile.squatPrKg ?? 0;
+      const bench = userProfile.benchPrKg ?? 0;
+      const deadlift = userProfile.deadliftPrKg ?? 0;
+      return {
+        id: userProfile.id || 'current-user',
+        name: userProfile.fullName || 'You',
+        userTag: userProfile.userTag || '4821',
+        isCurrentUser: true,
+        gymName: preferences.gymLocation?.name || 'No Gym Selected',
+        currentStreak: streakState.currentStreak,
+        bestStreak: streakState.bestStreak,
+        totalGymTimeMinutes,
+        squatPrKg: squat,
+        benchPrKg: bench,
+        deadliftPrKg: deadlift,
+        totalPrKg: squat + bench + deadlift,
+      };
+    },
     [userProfile, preferences.gymLocation, streakState, totalGymTimeMinutes]
   );
 
@@ -189,26 +230,37 @@ export default function LeaderboardScreen() {
         }
         return true;
       })
-      .map((u) => ({
-        id: u.id,
-        name: u.fullName || 'Athlete',
-        userTag: u.userTag || '0000',
-        isCurrentUser: false,
-        gymName: u.gymName || 'No Gym Selected',
-        currentStreak: u.currentStreak,
-        bestStreak: u.bestStreak,
-        totalGymTimeMinutes: u.totalGymTimeMinutes,
-      }));
+      .map((u) => {
+        const squat = u.squatPrKg ?? 0;
+        const bench = u.benchPrKg ?? 0;
+        const deadlift = u.deadliftPrKg ?? 0;
+        return {
+          id: u.id,
+          name: u.fullName || 'Athlete',
+          userTag: u.userTag || '0000',
+          isCurrentUser: false,
+          gymName: u.gymName || 'No Gym Selected',
+          currentStreak: u.currentStreak,
+          bestStreak: u.bestStreak,
+          totalGymTimeMinutes: u.totalGymTimeMinutes,
+          squatPrKg: squat,
+          benchPrKg: bench,
+          deadliftPrKg: deadlift,
+          totalPrKg: squat + bench + deadlift,
+        };
+      });
 
     const list = [currentUserEntry, ...otherEntries];
     list.sort((a, b) => {
-      if (selectedFilter === 'currentStreak') {
-        return b.currentStreak - a.currentStreak;
+      if (selectedFilter === 'currentStreak') return b.currentStreak - a.currentStreak;
+      if (selectedFilter === 'bestStreak') return b.bestStreak - a.bestStreak;
+      if (selectedFilter === 'totalGymTime') {
+        return b.totalGymTimeMinutes - a.totalGymTimeMinutes;
       }
-      if (selectedFilter === 'bestStreak') {
-        return b.bestStreak - a.bestStreak;
-      }
-      return b.totalGymTimeMinutes - a.totalGymTimeMinutes;
+      if (selectedFilter === 'total') return b.totalPrKg - a.totalPrKg;
+      if (selectedFilter === 'squat') return b.squatPrKg - a.squatPrKg;
+      if (selectedFilter === 'bench') return b.benchPrKg - a.benchPrKg;
+      return b.deadliftPrKg - a.deadliftPrKg;
     });
     return list;
   }, [
@@ -256,9 +308,33 @@ export default function LeaderboardScreen() {
         unit: 'best streak',
       };
     }
+    if (selectedFilter === 'totalGymTime') {
+      return {
+        value: formatGymTime(item.totalGymTimeMinutes),
+        unit: `${item.totalGymTimeMinutes} mins total`,
+      };
+    }
+    if (selectedFilter === 'total') {
+      return {
+        value: formatWeightWithUnit(item.totalPrKg, weightUnit),
+        unit: 'SBD total',
+      };
+    }
+    if (selectedFilter === 'squat') {
+      return {
+        value: formatWeightWithUnit(item.squatPrKg, weightUnit),
+        unit: 'squat PR',
+      };
+    }
+    if (selectedFilter === 'bench') {
+      return {
+        value: formatWeightWithUnit(item.benchPrKg, weightUnit),
+        unit: 'bench PR',
+      };
+    }
     return {
-      value: formatGymTime(item.totalGymTimeMinutes),
-      unit: `${item.totalGymTimeMinutes} mins total`,
+      value: formatWeightWithUnit(item.deadliftPrKg, weightUnit),
+      unit: 'deadlift PR',
     };
   };
 
@@ -329,11 +405,6 @@ export default function LeaderboardScreen() {
           </Text>
         </View>
 
-        {/* Avatar */}
-        <View style={styles.avatarContainer}>
-          <Ionicons name="person" size={20} color={theme.primaryLight} />
-        </View>
-
         {/* User Info & Sub-metrics */}
         <View style={styles.userInfo}>
           <View style={styles.nameRow}>
@@ -383,6 +454,16 @@ export default function LeaderboardScreen() {
             >
               <Text style={styles.miniStatText}>
                 ⏱️ {formatGymTime(item.totalGymTimeMinutes)}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.miniStatPill,
+                selectedFilter === 'total' && styles.miniStatPillActive,
+              ]}
+            >
+              <Text style={styles.miniStatText}>
+                🏋️ {formatWeightWithUnit(item.totalPrKg, weightUnit)}
               </Text>
             </View>
           </View>
@@ -544,10 +625,47 @@ export default function LeaderboardScreen() {
           })}
         </View>
 
-        {/* 2. Filter Pills: Current Streak | Best Streak | Total Gym Time */}
+        {/* 2. Filter Pills & lbs/kg Toggle */}
         <View style={styles.filterSection}>
-          <Text style={styles.filterHeaderLabel}>SORT BY</Text>
-          <View style={styles.filterRow}>
+          <View style={styles.filterHeaderRow}>
+            <Text style={styles.filterHeaderLabel}>SORT BY</Text>
+            <View style={styles.unitTogglePill}>
+              <TouchableOpacity
+                style={[
+                  styles.unitOptionBtn,
+                  weightUnit === 'lbs' && styles.unitOptionBtnActive,
+                ]}
+                onPress={() => handleToggleWeightUnit('lbs')}
+              >
+                <Text
+                  style={[
+                    styles.unitOptionText,
+                    weightUnit === 'lbs' && styles.unitOptionTextActive,
+                  ]}
+                >
+                  lbs
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.unitOptionBtn,
+                  weightUnit === 'kg' && styles.unitOptionBtnActive,
+                ]}
+                onPress={() => handleToggleWeightUnit('kg')}
+              >
+                <Text
+                  style={[
+                    styles.unitOptionText,
+                    weightUnit === 'kg' && styles.unitOptionTextActive,
+                  ]}
+                >
+                  kg
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.filterWrapRow}>
             {FILTERS.map((filter) => {
               const active = selectedFilter === filter.key;
               return (
@@ -672,26 +790,56 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 14,
   },
+  filterHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   filterHeaderLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: theme.textTertiary,
     letterSpacing: 1,
-    marginBottom: 8,
   },
-  filterRow: {
+  unitTogglePill: {
     flexDirection: 'row',
+    backgroundColor: theme.cardBackground,
+    borderRadius: 10,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    gap: 2,
+  },
+  unitOptionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  unitOptionBtnActive: {
+    backgroundColor: theme.primary,
+  },
+  unitOptionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.textSecondary,
+  },
+  unitOptionTextActive: {
+    color: theme.onPrimary,
+  },
+  filterWrapRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   filterChip: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
     backgroundColor: theme.cardBackground,
-    paddingVertical: 9,
-    paddingHorizontal: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 11,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.cardBorder,
@@ -907,20 +1055,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.cardBackground,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginBottom: 7,
     borderWidth: 1,
     borderColor: theme.cardBorder,
-    gap: 12,
+    gap: 10,
   },
   currentUserCard: {
     borderColor: theme.primaryBorder,
   },
   rankBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     backgroundColor: theme.cardBackgroundSubtle,
     justifyContent: 'center',
     alignItems: 'center',
@@ -932,22 +1081,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(245, 158, 11, 0.45)',
   },
   rankText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: theme.textSecondary,
   },
   firstRankText: {
     color: theme.warning,
-  },
-  avatarContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: theme.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.primaryBorder,
   },
   userInfo: {
     flex: 1,
@@ -1038,19 +1177,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   gymSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.textSecondary,
-    marginTop: 2,
+    marginTop: 1,
   },
   miniStatsRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: 8,
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 5,
   },
   miniStatPill: {
     backgroundColor: theme.cardBackgroundSubtle,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: theme.cardBorder,
@@ -1069,7 +1209,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   metricValue: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '800',
     color: theme.textPrimary,
   },

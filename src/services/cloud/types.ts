@@ -13,6 +13,9 @@ export interface RemoteLeaderboardUser {
   totalGymTimeMinutes: number;
   workoutsCount: number;
   weeklyGoal: number;
+  squatPrKg: number;
+  benchPrKg: number;
+  deadliftPrKg: number;
   updatedAt: string;
 }
 
@@ -30,6 +33,9 @@ export interface UserCloudSyncData {
   totalGymTimeMinutes: number;
   workoutsCount: number;
   weeklyGoal: number;
+  squatPrKg?: number;
+  benchPrKg?: number;
+  deadliftPrKg?: number;
   unsyncedWorkouts?: WorkoutSession[];
 }
 

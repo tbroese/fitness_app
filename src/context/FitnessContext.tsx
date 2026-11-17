@@ -9,6 +9,7 @@ import {
   GymLocation,
   DwellSessionState,
   AuthProviderType,
+  WeightUnit,
   FIXED_DWELL_MINUTES,
   DEFAULT_GEOFENCE_RADIUS_METERS,
 } from '../types/fitness';
@@ -58,6 +59,13 @@ interface FitnessContextType {
   isSyncingCloud: boolean;
   friendships: FriendshipsOverview;
   updateUserProfile: (fullName: string, options?: { email?: string; authProvider?: AuthProviderType }) => Promise<void>;
+  updateLiftPrs: (updates: {
+    squatPrKg?: number;
+    benchPrKg?: number;
+    deadliftPrKg?: number;
+    preferredWeightUnit?: WeightUnit;
+  }) => Promise<void>;
+  setPreferredWeightUnit: (unit: WeightUnit) => Promise<void>;
   signInWithAccount: (input: SignInAccountInput) => Promise<{ restoredExisting: boolean }>;
   handleOAuthRedirectUrl: (url: string) => Promise<boolean>;
   signOutAccount: () => Promise<void>;
@@ -155,6 +163,9 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           totalGymTimeMinutes,
           workoutsCount: workoutsSnap.length,
           weeklyGoal: prefsSnap.weeklyGoal,
+          squatPrKg: profileSnap.squatPrKg ?? 0,
+          benchPrKg: profileSnap.benchPrKg ?? 0,
+          deadliftPrKg: profileSnap.deadliftPrKg ?? 0,
           unsyncedWorkouts,
         });
 
@@ -349,6 +360,53 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await syncSnapshotToCloud(saved, preferences, streakState, workouts);
   };
 
+  const updateLiftPrs = async (updates: {
+    squatPrKg?: number;
+    benchPrKg?: number;
+    deadliftPrKg?: number;
+    preferredWeightUnit?: WeightUnit;
+  }) => {
+    const updatedProfile: UserProfile = {
+      ...userProfileRef.current,
+      squatPrKg:
+        updates.squatPrKg !== undefined
+          ? Math.max(0, updates.squatPrKg)
+          : userProfileRef.current.squatPrKg ?? 0,
+      benchPrKg:
+        updates.benchPrKg !== undefined
+          ? Math.max(0, updates.benchPrKg)
+          : userProfileRef.current.benchPrKg ?? 0,
+      deadliftPrKg:
+        updates.deadliftPrKg !== undefined
+          ? Math.max(0, updates.deadliftPrKg)
+          : userProfileRef.current.deadliftPrKg ?? 0,
+      preferredWeightUnit:
+        updates.preferredWeightUnit ||
+        userProfileRef.current.preferredWeightUnit ||
+        'lbs',
+      updatedAt: new Date().toISOString(),
+    };
+
+    const saved = await storageService.saveUserProfile(updatedProfile);
+    setUserProfile(saved);
+    await syncSnapshotToCloud(
+      saved,
+      preferencesRef.current,
+      streakStateRef.current,
+      workoutsRef.current
+    );
+  };
+
+  const setPreferredWeightUnit = async (unit: WeightUnit) => {
+    const updatedProfile: UserProfile = {
+      ...userProfileRef.current,
+      preferredWeightUnit: unit,
+      updatedAt: new Date().toISOString(),
+    };
+    const saved = await storageService.saveUserProfile(updatedProfile);
+    setUserProfile(saved);
+  };
+
   /**
    * One-time sign-in with Google, Apple, or quick profile setup.
    * Deduplicates accounts by checking if an existing cloud account matches the email.
@@ -369,6 +427,9 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           userTag: existingRemote.userTag,
           email: cleanEmail,
           authProvider: input.authProvider,
+          squatPrKg: existingRemote.squatPrKg ?? userProfile.squatPrKg ?? 0,
+          benchPrKg: existingRemote.benchPrKg ?? userProfile.benchPrKg ?? 0,
+          deadliftPrKg: existingRemote.deadliftPrKg ?? userProfile.deadliftPrKg ?? 0,
           hasCompletedOnboarding: true,
           updatedAt: new Date().toISOString(),
         };
@@ -907,6 +968,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isSyncingCloud,
         friendships,
         updateUserProfile,
+        updateLiftPrs,
+        setPreferredWeightUnit,
         signInWithAccount,
         handleOAuthRedirectUrl,
         signOutAccount,

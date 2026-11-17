@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -16,6 +17,7 @@ import { WeeklyProgressCard } from '../../components/WeeklyProgressCard';
 import { GymStatusCard } from '../../components/GymStatusCard';
 import { GpsSimulatorModal } from '../../components/GpsSimulatorModal';
 import { FirstTimeNameModal } from '../../components/FirstTimeNameModal';
+import { BackgroundLocationModal } from '../../components/BackgroundLocationModal';
 import { ENABLE_DEBUG_SIMULATOR } from '../../constants/config';
 import { theme } from '../../constants/theme';
 
@@ -27,18 +29,44 @@ export default function DashboardScreen() {
     workouts,
     dwellState,
     currentDistanceMeters,
+    permissionStatus,
     isLoading,
     refreshLocation,
+    refreshPermissionStatus,
+    requestAutoTrackingPermission,
+    setAutoDetectGym,
+    startManualGymSession,
     signInWithAccount,
   } = useFitness();
 
   const [refreshing, setRefreshing] = useState(false);
   const [simulatorVisible, setSimulatorVisible] = useState(false);
+  const [bgLocationModalVisible, setBgLocationModalVisible] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refreshLocation();
+    await Promise.all([refreshLocation(), refreshPermissionStatus()]);
     setRefreshing(false);
+  };
+
+  const handleToggleAutoTracking = async () => {
+    const isCurrentlyOn = preferences.autoDetectGym && permissionStatus.backgroundGranted;
+    if (isCurrentlyOn) {
+      await setAutoDetectGym(false);
+      return;
+    }
+    if (permissionStatus.backgroundGranted) {
+      await setAutoDetectGym(true);
+      return;
+    }
+    setBgLocationModalVisible(true);
+  };
+
+  const handleStartManualSession = async () => {
+    const res = await startManualGymSession();
+    if (!res.success) {
+      Alert.alert('Check-In Unavailable', res.message);
+    }
   };
 
   const todayFormatted = new Date().toLocaleDateString('en-US', {
@@ -125,7 +153,11 @@ export default function DashboardScreen() {
           gym={preferences.gymLocation}
           dwellState={dwellState}
           distanceMeters={currentDistanceMeters}
+          autoDetectGym={preferences.autoDetectGym}
+          permissionStatus={permissionStatus}
           onRefreshLocation={refreshLocation}
+          onToggleAutoTracking={handleToggleAutoTracking}
+          onStartManualSession={handleStartManualSession}
           onOpenGymSettings={() =>
             router.push({
               pathname: '/goal',
@@ -148,6 +180,20 @@ export default function DashboardScreen() {
         visible={showOnboardingModal}
         userTag={userProfile.userTag}
         onSignIn={signInWithAccount}
+      />
+
+      {/* Google Play Prominent Disclosure for Background Location */}
+      <BackgroundLocationModal
+        visible={bgLocationModalVisible}
+        onContinue={async () => {
+          setBgLocationModalVisible(false);
+          await setAutoDetectGym(true);
+          await requestAutoTrackingPermission();
+        }}
+        onUseForegroundOnly={async () => {
+          setBgLocationModalVisible(false);
+          await setAutoDetectGym(false);
+        }}
       />
 
       {/* Simulator Modal for testing */}

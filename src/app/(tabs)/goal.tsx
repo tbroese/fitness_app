@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
+import { BackgroundLocationModal } from '../../components/BackgroundLocationModal';
 import {
   getCurrentCoordinates,
   requestLocationPermissions,
@@ -26,11 +28,30 @@ type GymSetupMode = 'existing' | 'custom';
 export default function GoalSetupScreen() {
   const {
     preferences,
+    permissionStatus,
     setWeeklyGoal,
     scheduleGoalForMonday,
     cancelPendingGoal,
     updateGymLocation,
+    setAutoDetectGym,
+    requestAutoTrackingPermission,
   } = useFitness();
+
+  const [bgLocationModalVisible, setBgLocationModalVisible] = useState(false);
+
+  const isAutoTrackingOn = preferences.autoDetectGym && permissionStatus.backgroundGranted;
+
+  const handleToggleAutoTracking = async () => {
+    if (isAutoTrackingOn) {
+      await setAutoDetectGym(false);
+      return;
+    }
+    if (permissionStatus.backgroundGranted) {
+      await setAutoDetectGym(true);
+      return;
+    }
+    setBgLocationModalVisible(true);
+  };
 
   const { scrollTo, t } = useLocalSearchParams<{ scrollTo?: string; t?: string }>();
   const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -244,7 +265,11 @@ export default function GoalSetupScreen() {
       await updateGymLocation(newGym);
       setupGymGeofence(newGym);
 
-      Alert.alert('Saved!', `Gym "${newGym.name}" has been configured.`);
+      if (!permissionStatus.backgroundGranted) {
+        setBgLocationModalVisible(true);
+      } else {
+        Alert.alert('Saved!', `Gym "${newGym.name}" has been configured.`);
+      }
       return;
     }
 
@@ -272,7 +297,11 @@ export default function GoalSetupScreen() {
     await updateGymLocation(newGym);
     setupGymGeofence(newGym);
 
-    Alert.alert('Saved!', `Gym "${newGym.name}" has been configured.`);
+    if (!permissionStatus.backgroundGranted) {
+      setBgLocationModalVisible(true);
+    } else {
+      Alert.alert('Saved!', `Gym "${newGym.name}" has been configured.`);
+    }
   };
 
   return (
@@ -509,6 +538,32 @@ export default function GoalSetupScreen() {
             <Ionicons name="save-outline" size={18} color={theme.onPrimary} />
             <Text style={styles.saveBtnText}>Save Gym Settings</Text>
           </TouchableOpacity>
+
+          {/* Auto-Tracking Status Toggle */}
+          <TouchableOpacity
+            style={styles.autoTrackRow}
+            onPress={handleToggleAutoTracking}
+            activeOpacity={0.85}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.autoTrackTitle}>Auto-Tracking (Hands-Free)</Text>
+              <Text style={styles.autoTrackSub}>
+                {isAutoTrackingOn
+                  ? 'Active • Tap to switch to manual check-in'
+                  : permissionStatus.backgroundGranted
+                  ? 'Manual Check-In • Tap to enable Auto-Tracking'
+                  : permissionStatus.foregroundGranted
+                  ? 'Foreground-only • Tap to select "Allow all the time"'
+                  : 'Off • Tap to enable location tracking'}
+              </Text>
+            </View>
+            <Switch
+              value={isAutoTrackingOn}
+              onValueChange={handleToggleAutoTracking}
+              trackColor={{ false: theme.cardBorder, true: theme.success }}
+              thumbColor="#FFFFFF"
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Section 2: Weekly Goal */}
@@ -587,6 +642,22 @@ export default function GoalSetupScreen() {
           )}
         </View>
       </ScrollView>
+
+      <BackgroundLocationModal
+        visible={bgLocationModalVisible}
+        onContinue={async () => {
+          setBgLocationModalVisible(false);
+          await setAutoDetectGym(true);
+          await requestAutoTrackingPermission();
+        }}
+        onUseForegroundOnly={async () => {
+          setBgLocationModalVisible(false);
+          await setAutoDetectGym(false);
+          if (!permissionStatus.foregroundGranted) {
+            await requestLocationPermissions(false);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -911,5 +982,28 @@ const styles = StyleSheet.create({
     color: theme.onPrimary,
     fontWeight: '700',
     fontSize: 15,
+  },
+  autoTrackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  autoTrackTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.textPrimary,
+  },
+  autoTrackSub: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 2,
   },
 });

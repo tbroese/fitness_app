@@ -234,13 +234,20 @@ export const storageService = {
    * Called by foreground GPS or background TaskManager when entering the gym geofence.
    * Persists entry timestamp in AsyncStorage so dwell time survives app restarts/backgrounding.
    */
-  async handleBackgroundGeofenceEnter(gymName?: string): Promise<DwellSessionState> {
+  async handleBackgroundGeofenceEnter(
+    gymName?: string,
+    isManualStart: boolean = false
+  ): Promise<DwellSessionState> {
     const today = formatDateToYYYYMMDD(new Date());
     const [existingSession, workouts, prefs] = await Promise.all([
       this.getDwellSession(),
       this.getWorkouts(),
       this.getPreferences(),
     ]);
+
+    if (!isManualStart && !prefs.autoDetectGym) {
+      return existingSession;
+    }
 
     const todayWorkout = workouts.find((w) => w.dateString === today);
     const completedToday = Boolean(todayWorkout);

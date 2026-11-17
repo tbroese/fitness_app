@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { Linking } from 'react-native';
 import { GymLocation, DEFAULT_GEOFENCE_RADIUS_METERS } from '../types/fitness';
 import { storageService } from './storageService';
 
@@ -68,9 +69,40 @@ export function isInsideGym(
 }
 
 /**
- * Request location permissions (Foreground and Background)
+ * Check current location permissions without prompting
  */
-export async function requestLocationPermissions(): Promise<{
+export async function getLocationPermissionStatus(): Promise<{
+  foregroundGranted: boolean;
+  backgroundGranted: boolean;
+}> {
+  try {
+    const fg = await Location.getForegroundPermissionsAsync();
+    let bgGranted = false;
+    if (fg.granted) {
+      try {
+        const bg = await Location.getBackgroundPermissionsAsync();
+        bgGranted = bg.granted;
+      } catch {
+        bgGranted = false;
+      }
+    }
+    return {
+      foregroundGranted: fg.granted,
+      backgroundGranted: bgGranted,
+    };
+  } catch {
+    return { foregroundGranted: false, backgroundGranted: false };
+  }
+}
+
+/**
+ * Request location permissions (Foreground and Background).
+ * If openSettingsIfNeeded is true and the OS won't show the background prompt again,
+ * opens the device's app settings so the user can choose "Allow all the time".
+ */
+export async function requestLocationPermissions(
+  openSettingsIfNeeded: boolean = false
+): Promise<{
   foregroundGranted: boolean;
   backgroundGranted: boolean;
 }> {
@@ -81,10 +113,18 @@ export async function requestLocationPermissions(): Promise<{
       try {
         const bg = await Location.requestBackgroundPermissionsAsync();
         bgGranted = bg.granted;
+        if (!bgGranted && openSettingsIfNeeded && !bg.canAskAgain) {
+          await Linking.openSettings();
+        }
       } catch (bgErr) {
         // Expo Go on Android does not support background location, but foreground works great
         console.log('Background location not supported in this runtime (Expo Go):', bgErr);
+        if (openSettingsIfNeeded) {
+          await Linking.openSettings();
+        }
       }
+    } else if (openSettingsIfNeeded && !fg.canAskAgain) {
+      await Linking.openSettings();
     }
     return {
       foregroundGranted: fg.granted,
@@ -173,5 +213,16 @@ export async function setupGymGeofence(gym: GymLocation): Promise<boolean> {
     // Note: Expo Go on Android does not support startGeofencingAsync, but foreground location watching handles it cleanly
     console.log('Background geofencing unavailable in current runtime (handled via live location watcher):', err);
     return false;
+  }
+}
+
+export async function stopGymGeofence(): Promise<void> {
+  try {
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(GEOFENCE_TASK_NAME);
+    if (isRegistered) {
+      await Location.stopGeofencingAsync(GEOFENCE_TASK_NAME);
+    }
+  } catch (err) {
+    console.log('Could not stop background geofencing:', err);
   }
 }

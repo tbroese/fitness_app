@@ -8,4 +8,5 @@ import { SupabaseDatabaseProvider } from './supabaseProvider';
  */
 export const cloudDatabase: CloudDatabaseProvider = new SupabaseDatabaseProvider();
 
+export { getOAuthRedirectUri } from './supabaseProvider';
 export * from './types';

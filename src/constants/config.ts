@@ -10,6 +10,14 @@ export const ENABLE_DEBUG_SIMULATOR = false;
  * or in your EAS environment variables.
  */
 export const SUPABASE_CONFIG = {
-  url: (process.env.EXPO_PUBLIC_SUPABASE_URL || '').trim().replace(/\/$/, ''),
-  anonKey: (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').trim(),
+  url: (
+    process.env.EXPO_PUBLIC_SUPABASE_URL ||
+    'https://nzoarfnrnbnwfduftcvv.supabase.co'
+  )
+    .trim()
+    .replace(/\/$/, ''),
+  anonKey: (
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+    'sb_publishable_P4bLx6fKUOL9G7Gdffj_SQ_rHsiqWWx'
+  ).trim(),
 };

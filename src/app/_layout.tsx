@@ -15,6 +15,8 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="auth-callback" />
+        <Stack.Screen name="+not-found" />
       </Stack>
     </FitnessProvider>
   );

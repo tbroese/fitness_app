@@ -29,7 +29,7 @@ export default function DashboardScreen() {
     currentDistanceMeters,
     isLoading,
     refreshLocation,
-    updateUserProfile,
+    signInWithAccount,
   } = useFitness();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -143,10 +143,11 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
 
-      {/* First-Time Full Name Onboarding Prompt */}
+      {/* First-Time One-Time Sign-In Onboarding Prompt */}
       <FirstTimeNameModal
         visible={showOnboardingModal}
-        onSaveName={updateUserProfile}
+        userTag={userProfile.userTag}
+        onSignIn={signInWithAccount}
       />
 
       {/* Simulator Modal for testing */}

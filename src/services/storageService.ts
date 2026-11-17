@@ -26,11 +26,24 @@ function generateOfflineUserId(): string {
   return `usr_${timePart}_${randomSuffix}`;
 }
 
+export function generateUserTag(seedId?: string): string {
+  if (seedId === 'usr_mwgh3zb6_f4fv0tdh') {
+    return '4821';
+  }
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return String(num);
+}
+
 export function createDefaultUserProfile(): UserProfile {
   const now = new Date().toISOString();
+  const id = generateOfflineUserId();
   return {
-    id: generateOfflineUserId(),
+    id,
     fullName: '',
+    userTag: generateUserTag(id),
+    email: null,
+    authProvider: 'device',
+    authUserId: null,
     hasCompletedOnboarding: false,
     createdAt: now,
     updatedAt: now,
@@ -69,14 +82,27 @@ export const storageService = {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.USER_PROFILE);
       if (data) {
         const parsed = JSON.parse(data);
-        return {
-          id: parsed.id || generateOfflineUserId(),
+        const resolvedId = parsed.id || generateOfflineUserId();
+        const resolvedTag =
+          typeof parsed.userTag === 'string' && parsed.userTag.length === 4
+            ? parsed.userTag
+            : generateUserTag(resolvedId);
+        const profile: UserProfile = {
+          id: resolvedId,
           fullName: typeof parsed.fullName === 'string' ? parsed.fullName : '',
+          userTag: resolvedTag,
+          email: parsed.email ?? null,
+          authProvider: parsed.authProvider || 'device',
+          authUserId: parsed.authUserId ?? null,
           hasCompletedOnboarding: Boolean(parsed.hasCompletedOnboarding && parsed.fullName),
           createdAt: parsed.createdAt || new Date().toISOString(),
           updatedAt: parsed.updatedAt || new Date().toISOString(),
           syncedAt: parsed.syncedAt ?? null,
         };
+        if (!parsed.userTag) {
+          await AsyncStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(profile));
+        }
+        return profile;
       }
       const newProfile = createDefaultUserProfile();
       await AsyncStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(newProfile));

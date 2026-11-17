@@ -1,10 +1,16 @@
 export const FIXED_DWELL_MINUTES = 15;
 export const DEFAULT_GEOFENCE_RADIUS_METERS = 300;
 
+export type AuthProviderType = 'google' | 'apple' | 'device';
+
 export interface UserProfile {
-  id: string; // Unique UUID for future cloud sync & leaderboard
+  id: string; // Unique UUID for cloud sync & leaderboard
   fullName: string; // User's full name
-  hasCompletedOnboarding: boolean; // False until first-time name prompt is saved
+  userTag: string; // 4-digit discriminator tag (e.g. "4821" -> "Tanner B #4821")
+  email?: string | null; // Linked Google or Apple email to prevent duplicate accounts
+  authProvider?: AuthProviderType; // 'google' | 'apple' | 'device'
+  authUserId?: string | null; // OAuth / Supabase Auth subject ID
+  hasCompletedOnboarding: boolean; // False until first-time sign-in is completed
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
   syncedAt?: string | null; // null until connected to cloud server

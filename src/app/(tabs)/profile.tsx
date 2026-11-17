@@ -38,7 +38,7 @@ export default function ProfileScreen() {
     }
 
     await updateUserProfile(trimmed);
-    Alert.alert('Saved', 'Your full name has been saved to your device.');
+    Alert.alert('Saved', 'Your display name has been updated.');
   };
 
   return (
@@ -50,12 +50,13 @@ export default function ProfileScreen() {
             <Ionicons name="person" size={32} color={theme.primaryLight} />
           </View>
           <View style={styles.heroInfo}>
-            <Text style={styles.heroName}>{userProfile.fullName || 'New Member'}</Text>
+            <View style={styles.heroNameRow}>
+              <Text style={styles.heroName}>{userProfile.fullName || 'New Member'}</Text>
+              <View style={styles.tagBadge}>
+                <Text style={styles.tagBadgeText}>#{userProfile.userTag || '4821'}</Text>
+              </View>
+            </View>
             <Text style={styles.heroMeta}>Member since {memberSince}</Text>
-          </View>
-          <View style={styles.offlineBadge}>
-            <Ionicons name="phone-portrait-outline" size={12} color={theme.successLight} />
-            <Text style={styles.offlineBadgeText}>On-Device</Text>
           </View>
         </View>
 
@@ -86,7 +87,14 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>Profile</Text>
           </View>
 
-          <Text style={styles.fieldLabel}>Full Name</Text>
+          <View style={styles.tagInfoRow}>
+            <Text style={styles.tagInfoLabel}>Unique Friend Tag</Text>
+            <Text style={styles.tagInfoValue}>
+              {userProfile.fullName || 'You'} #{userProfile.userTag || '4821'}
+            </Text>
+          </View>
+
+          <Text style={styles.fieldLabel}>Display Name</Text>
           <TextInput
             style={styles.input}
             value={fullName}
@@ -96,7 +104,7 @@ export default function ProfileScreen() {
           />
 
           <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
-            <Text style={styles.saveBtnText}>Save</Text>
+            <Text style={styles.saveBtnText}>Save Name</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -139,31 +147,34 @@ const styles = StyleSheet.create({
   heroInfo: {
     flex: 1,
   },
+  heroNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
   heroName: {
     fontSize: 20,
     fontWeight: '800',
     color: theme.textPrimary,
   },
+  tagBadge: {
+    backgroundColor: theme.primaryMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+  },
+  tagBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.primaryLight,
+  },
   heroMeta: {
     fontSize: 12,
     color: theme.textTertiary,
     marginTop: 4,
-  },
-  offlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: theme.successMuted,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  offlineBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: theme.successLight,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -204,18 +215,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 6,
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '800',
     color: theme.textPrimary,
   },
+  tagInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackgroundSubtle,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    marginBottom: 6,
+  },
+  tagInfoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.textSecondary,
+  },
+  tagInfoValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: theme.primaryLight,
+  },
   fieldLabel: {
     fontSize: 13,
     fontWeight: '700',
     color: theme.textPrimary,
-    marginTop: 10,
+    marginTop: 14,
     marginBottom: 8,
   },
   input: {
@@ -235,7 +268,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.primary,
     paddingVertical: 14,
     borderRadius: 14,
-    marginTop: 18,
+    marginTop: 14,
   },
   saveBtnText: {
     color: '#FFFFFF',

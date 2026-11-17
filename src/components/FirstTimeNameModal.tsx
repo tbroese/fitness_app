@@ -1,78 +1,131 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
+  ActivityIndicator,
 } from 'react-native';
+import * as Linking from 'expo-linking';
 import { Ionicons } from '@expo/vector-icons';
+import { SignInAccountInput } from '../context/FitnessContext';
+import { cloudDatabase, getOAuthRedirectUri } from '../services/cloud';
 import { theme } from '../constants/theme';
 
 interface FirstTimeNameModalProps {
   visible: boolean;
-  onSaveName: (fullName: string) => Promise<void>;
+  userTag?: string;
+  onSignIn: (input: SignInAccountInput) => Promise<{ restoredExisting: boolean }>;
+}
+
+function extractAccessTokenFromUrl(url: string): string | null {
+  const hashIndex = url.indexOf('#');
+  const queryIndex = url.indexOf('?');
+  const paramString =
+    hashIndex !== -1
+      ? url.slice(hashIndex + 1)
+      : queryIndex !== -1
+      ? url.slice(queryIndex + 1)
+      : '';
+  if (!paramString) return null;
+
+  const pairs = paramString.split('&');
+  for (const pair of pairs) {
+    const [k, v] = pair.split('=');
+    if (decodeURIComponent(k) === 'access_token' && v) {
+      return decodeURIComponent(v);
+    }
+  }
+  return null;
 }
 
 export const FirstTimeNameModal: React.FC<FirstTimeNameModalProps> = ({
   visible,
-  onSaveName,
+  onSignIn,
 }) => {
-  const [fullName, setFullName] = useState('');
-  const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSave = async () => {
-    const trimmed = fullName.trim();
-    if (!trimmed) {
-      setError(true);
+  // Listen for OAuth redirect callback and automatically sign in
+  useEffect(() => {
+    if (!visible) return;
+
+    const subscription = Linking.addEventListener('url', async ({ url }) => {
+      const token = extractAccessTokenFromUrl(url);
+      if (!token) return;
+
+      const identity = await cloudDatabase.getUserFromAccessToken(token, 'google');
+      setSubmitting(false);
+
+      if (identity) {
+        await onSignIn({
+          fullName: identity.fullName,
+          email: identity.email,
+          authProvider: 'google',
+        });
+      } else {
+        setErrorMsg('Could not read profile from Google sign-in.');
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [visible, onSignIn]);
+
+  const handleGoogleSignIn = async () => {
+    setErrorMsg(null);
+    const redirectUri = getOAuthRedirectUri();
+    const authUrl = cloudDatabase.getOAuthAuthorizeUrl('google', redirectUri);
+
+    if (!authUrl) {
+      setErrorMsg('Supabase URL is not configured yet.');
       return;
     }
-    setError(false);
-    await onSaveName(trimmed);
+
+    setSubmitting(true);
+    try {
+      await Linking.openURL(authUrl);
+    } catch (e) {
+      console.warn('Could not open OAuth URL:', e);
+      setErrorMsg('Could not launch browser for sign-in.');
+      setSubmitting(false);
+    }
   };
 
   return (
     <Modal visible={visible} animationType="fade" transparent statusBarTranslucent>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.overlay}
-      >
+      <View style={styles.overlay}>
         <View style={styles.modalCard}>
           <View style={styles.iconCircle}>
-            <Ionicons name="person-add-outline" size={28} color={theme.primaryLight} />
+            <Ionicons name="shield-checkmark-outline" size={28} color={theme.primaryLight} />
           </View>
 
           <Text style={styles.title}>Welcome!</Text>
           <Text style={styles.subtitle}>
-            Enter your full name to save your profile to your device and start tracking your gym streak.
+            Sign in with Google to back up your workout streak and compete with friends on the leaderboard.
           </Text>
 
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput
-            style={[styles.input, error && styles.inputError]}
-            value={fullName}
-            onChangeText={(text) => {
-              setFullName(text);
-              if (error) setError(false);
-            }}
-            placeholder="Enter your full name"
-            placeholderTextColor={theme.textTertiary}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={handleSave}
-          />
-          {error && (
-            <Text style={styles.errorText}>Please enter your full name to continue.</Text>
-          )}
+          {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
 
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>Save</Text>
+          <TouchableOpacity
+            style={styles.oauthGoogleBtn}
+            onPress={handleGoogleSignIn}
+            disabled={submitting}
+            activeOpacity={0.85}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="logo-google" size={18} color="#FFFFFF" />
+                <Text style={styles.oauthBtnText}>Continue with Google</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
@@ -80,7 +133,7 @@ export const FirstTimeNameModal: React.FC<FirstTimeNameModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.82)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -102,7 +155,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   title: {
     fontSize: 22,
@@ -118,42 +171,25 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 19,
   },
-  label: {
-    fontSize: 13,
+  oauthGoogleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: theme.primary,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  oauthBtnText: {
+    color: '#FFFFFF',
     fontWeight: '700',
-    color: theme.textPrimary,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: theme.inputBackground,
-    borderWidth: 1,
-    borderColor: theme.inputBorder,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: theme.textPrimary,
-  },
-  inputError: {
-    borderColor: theme.danger,
+    fontSize: 15,
   },
   errorText: {
     color: theme.danger,
     fontSize: 12,
-    marginTop: 6,
+    marginBottom: 12,
+    textAlign: 'center',
     fontWeight: '600',
-  },
-  saveBtn: {
-    backgroundColor: theme.primary,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-  },
-  saveBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 16,
   },
 });

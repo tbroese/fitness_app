@@ -60,6 +60,19 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="leaderboard"
+        options={{
+          title: 'Leaderboard',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? 'trophy' : 'trophy-outline'}
+              size={size || 20}
+              color={typeof color === 'string' ? color : theme.primary}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="goal"
         options={{
           title: 'Goal & Gym',

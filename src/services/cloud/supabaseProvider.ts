@@ -580,4 +580,34 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
       return false;
     }
   }
+
+  async deleteUserAccount(userId: string): Promise<boolean> {
+    if (!this.isConfigured() || !userId) return false;
+
+    try {
+      // Remove any friend requests involving this user
+      await fetch(
+        `${SUPABASE_CONFIG.url}/rest/v1/friend_requests?or=(requester_id.eq.${encodeURIComponent(
+          userId
+        )},receiver_id.eq.${encodeURIComponent(userId)})`,
+        {
+          method: 'DELETE',
+          headers: this.getHeaders(),
+        }
+      );
+
+      // Delete the user's leaderboard_users row (cascades to user_workouts)
+      const res = await fetch(
+        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?id=eq.${encodeURIComponent(userId)}`,
+        {
+          method: 'DELETE',
+          headers: this.getHeaders(),
+        }
+      );
+      return res.ok;
+    } catch (error) {
+      console.warn('[Supabase] Error deleting user account:', error);
+      return false;
+    }
+  }
 }

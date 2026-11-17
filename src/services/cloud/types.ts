@@ -94,4 +94,5 @@ export interface CloudDatabaseProvider {
     receiverId: string
   ): Promise<{ success: boolean; autoAccepted?: boolean; message: string }>;
   respondToFriendRequest(requestId: string, accept: boolean): Promise<boolean>;
+  deleteUserAccount(userId: string): Promise<boolean>;
 }

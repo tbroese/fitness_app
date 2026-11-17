@@ -26,6 +26,10 @@ import {
 import {
   calculateDistanceMeters,
   getCurrentCoordinates,
+  getLocationPermissionStatus,
+  requestLocationPermissions,
+  setupGymGeofence,
+  stopGymGeofence,
   subscribeToLocationUpdates,
 } from '../services/locationService';
 import {
@@ -48,6 +52,7 @@ interface FitnessContextType {
   workouts: WorkoutSession[];
   dwellState: DwellSessionState;
   currentDistanceMeters: number | null;
+  permissionStatus: { foregroundGranted: boolean; backgroundGranted: boolean };
   isLoading: boolean;
   isCloudConfigured: boolean;
   isSyncingCloud: boolean;
@@ -60,7 +65,11 @@ interface FitnessContextType {
   scheduleGoalForMonday: (goal: number) => Promise<void>;
   cancelPendingGoal: () => Promise<void>;
   updateGymLocation: (location: GymLocation) => Promise<void>;
+  setAutoDetectGym: (enabled: boolean) => Promise<void>;
   refreshLocation: () => Promise<void>;
+  refreshPermissionStatus: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
+  requestAutoTrackingPermission: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
+  startManualGymSession: () => Promise<{ success: boolean; message: string }>;
   syncToCloud: () => Promise<void>;
   fetchLeaderboardEntries: (
     category: 'global' | 'gym' | 'friends'
@@ -86,6 +95,10 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [streakState, setStreakState] = useState<StreakState>(DEFAULT_STREAK_STATE);
   const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
   const [currentDistanceMeters, setCurrentDistanceMeters] = useState<number | null>(null);
+  const [permissionStatus, setPermissionStatus] = useState<{
+    foregroundGranted: boolean;
+    backgroundGranted: boolean;
+  }>({ foregroundGranted: false, backgroundGranted: false });
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [friendships, setFriendships] = useState<FriendshipsOverview>({
@@ -287,6 +300,12 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setStreakState(dwellEval.streakState);
       setDwellState(dwellEval.dwellSession);
 
+      const perms = await getLocationPermissionStatus();
+      setPermissionStatus(perms);
+      if (savedPrefs.gymLocation && savedPrefs.autoDetectGym && perms.backgroundGranted) {
+        setupGymGeofence(savedPrefs.gymLocation);
+      }
+
       // Push latest stats to cloud database & load friendships in background
       syncSnapshotToCloud(
         savedProfile,
@@ -465,6 +484,9 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
 
     if (distance <= radius) {
+      if (!preferencesRef.current.autoDetectGym) {
+        return;
+      }
       await storageService.handleBackgroundGeofenceEnter(gym.name);
       const evalResult = await storageService.evaluatePersistedDwellSession();
       setDwellState(evalResult.dwellSession);
@@ -515,14 +537,25 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await applyProximityDistance(distance, gym);
   }, [applyProximityDistance]);
 
-  // Listen to AppState so when user unlocks phone or reopens app, persisted dwell time & background events sync immediately
+  // Listen to AppState so when user unlocks phone, returns from Settings, or reopens app, permissions & dwell state sync immediately
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextState: AppStateStatus) => {
       if (nextState === 'active') {
-        const evalResult = await storageService.evaluatePersistedDwellSession();
+        const [evalResult, perms] = await Promise.all([
+          storageService.evaluatePersistedDwellSession(),
+          getLocationPermissionStatus(),
+        ]);
         setDwellState(evalResult.dwellSession);
         setStreakState(evalResult.streakState);
         setWorkouts(evalResult.workouts);
+        setPermissionStatus(perms);
+        if (
+          preferencesRef.current.gymLocation &&
+          preferencesRef.current.autoDetectGym &&
+          perms.backgroundGranted
+        ) {
+          setupGymGeofence(preferencesRef.current.gymLocation);
+        }
         refreshLocation();
       }
     });
@@ -647,6 +680,95 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await syncSnapshotToCloud(userProfile, updatedPrefs, streakState, workouts);
   };
 
+  const setAutoDetectGym = useCallback(async (enabled: boolean) => {
+    const updatedPrefs: UserPreferences = {
+      ...preferencesRef.current,
+      autoDetectGym: enabled,
+    };
+    setPreferences(updatedPrefs);
+    await storageService.savePreferences(updatedPrefs);
+    if (enabled && updatedPrefs.gymLocation && permissionStatus.backgroundGranted) {
+      await setupGymGeofence(updatedPrefs.gymLocation);
+    } else if (!enabled) {
+      await stopGymGeofence();
+    }
+  }, [permissionStatus.backgroundGranted]);
+
+  const refreshPermissionStatus = useCallback(async () => {
+    const perms = await getLocationPermissionStatus();
+    setPermissionStatus(perms);
+    return perms;
+  }, []);
+
+  const requestAutoTrackingPermission = useCallback(async () => {
+    const perms = await requestLocationPermissions(true);
+    setPermissionStatus(perms);
+    if (preferencesRef.current.gymLocation && perms.backgroundGranted) {
+      await setupGymGeofence(preferencesRef.current.gymLocation);
+    }
+    if (perms.foregroundGranted) {
+      refreshLocation();
+    }
+    return perms;
+  }, [refreshLocation]);
+
+  // Layer 2: GPS-Verified Check-In for users on "While using the app" permission
+  const startManualGymSession = useCallback(async (): Promise<{
+    success: boolean;
+    message: string;
+  }> => {
+    const gym = preferencesRef.current.gymLocation;
+    if (!gym) {
+      return { success: false, message: 'Please set up your gym location first.' };
+    }
+
+    const perms = await getLocationPermissionStatus();
+    if (!perms.foregroundGranted) {
+      const requested = await requestLocationPermissions(false);
+      setPermissionStatus(requested);
+      if (!requested.foregroundGranted) {
+        return {
+          success: false,
+          message: 'Location permission is required to verify you are at the gym.',
+        };
+      }
+    }
+
+    const coords = await getCurrentCoordinates();
+    if (!coords) {
+      return {
+        success: false,
+        message: 'Could not read your GPS location. Please try again.',
+      };
+    }
+
+    const distance = calculateDistanceMeters(
+      coords.latitude,
+      coords.longitude,
+      gym.latitude,
+      gym.longitude
+    );
+    setCurrentDistanceMeters(distance);
+
+    const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
+    if (distance > radius) {
+      return {
+        success: false,
+        message: `You are ${distance}m away from ${gym.name}. You must be within ${radius}m to start a workout.`,
+      };
+    }
+
+    await storageService.handleBackgroundGeofenceEnter(gym.name, true);
+    const evalResult = await storageService.evaluatePersistedDwellSession();
+    setDwellState(evalResult.dwellSession);
+    setStreakState(evalResult.streakState);
+    setWorkouts(evalResult.workouts);
+    return {
+      success: true,
+      message: `Checked in at ${gym.name}! Stay for ${FIXED_DWELL_MINUTES} minutes to log your workout.`,
+    };
+  }, []);
+
   // Simulation controls (persists to AsyncStorage and keeps tracking past 15 mins while inside gym)
   const simulateEnterGym = async () => {
     const gymName = preferences.gymLocation?.name || 'Simulated Gym';
@@ -754,6 +876,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         workouts,
         dwellState,
         currentDistanceMeters,
+        permissionStatus,
         isLoading,
         isCloudConfigured: cloudDatabase.isConfigured(),
         isSyncingCloud,
@@ -766,7 +889,11 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         scheduleGoalForMonday,
         cancelPendingGoal,
         updateGymLocation,
+        setAutoDetectGym,
         refreshLocation,
+        refreshPermissionStatus,
+        requestAutoTrackingPermission,
+        startManualGymSession,
         syncToCloud,
         fetchLeaderboardEntries,
         refreshFriendships,

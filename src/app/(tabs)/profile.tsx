@@ -7,16 +7,29 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
 import { theme } from '../../constants/theme';
 
 export default function ProfileScreen() {
-  const { userProfile, streakState, workouts, updateUserProfile } = useFitness();
+  const {
+    userProfile,
+    streakState,
+    workouts,
+    updateUserProfile,
+    deleteAccount,
+  } = useFitness();
 
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const [fullName, setFullName] = useState(userProfile.fullName);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setFullName(userProfile.fullName);
@@ -30,21 +43,49 @@ export default function ProfileScreen() {
     year: 'numeric',
   });
 
-  const handleSaveProfile = async () => {
+  const handleSaveName = async () => {
     const trimmed = fullName.trim();
     if (!trimmed) {
-      Alert.alert('Full Name Required', 'Please enter your full name.');
+      Alert.alert('Display Name Required', 'Please enter your display name.');
       return;
     }
 
     await updateUserProfile(trimmed);
+    setSettingsVisible(false);
     Alert.alert('Saved', 'Your display name has been updated.');
+  };
+
+  const handleDeleteAccountPress = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to permanently delete your account? This will erase your streak, workout history, gym settings, friends, and cloud profile. This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteAccount();
+              setSettingsVisible(false);
+              router.replace('/');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        {/* Hero Profile Banner */}
+        {/* Hero Profile Banner with Settings Gear Button */}
         <View style={styles.heroCard}>
           <View style={styles.avatarCircle}>
             <Ionicons name="person" size={32} color={theme.primaryLight} />
@@ -58,6 +99,18 @@ export default function ProfileScreen() {
             </View>
             <Text style={styles.heroMeta}>Member since {memberSince}</Text>
           </View>
+
+          <TouchableOpacity
+            style={styles.settingsBtn}
+            onPress={() => {
+              setFullName(userProfile.fullName);
+              setSettingsVisible(true);
+            }}
+            activeOpacity={0.8}
+            accessibilityLabel="Open Settings"
+          >
+            <Ionicons name="settings-outline" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
         </View>
 
         {/* Career Stats Grid */}
@@ -80,34 +133,87 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Edit Profile Form */}
+        {/* Unique Friend Tag Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="person-circle-outline" size={22} color={theme.primaryLight} />
-            <Text style={styles.sectionTitle}>Profile</Text>
+            <Ionicons name="pricetag-outline" size={20} color={theme.primaryLight} />
+            <Text style={styles.sectionTitle}>Friend Tag</Text>
           </View>
-
+          <Text style={styles.sectionDesc}>
+            Share this tag so friends can find and add you on the Leaderboard.
+          </Text>
           <View style={styles.tagInfoRow}>
-            <Text style={styles.tagInfoLabel}>Unique Friend Tag</Text>
+            <Text style={styles.tagInfoLabel}>Your Unique Tag</Text>
             <Text style={styles.tagInfoValue}>
               {userProfile.fullName || 'You'} #{userProfile.userTag || '4821'}
             </Text>
           </View>
-
-          <Text style={styles.fieldLabel}>Display Name</Text>
-          <TextInput
-            style={styles.input}
-            value={fullName}
-            onChangeText={setFullName}
-            placeholder="Enter your full name"
-            placeholderTextColor={theme.textTertiary}
-          />
-
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
-            <Text style={styles.saveBtnText}>Save Name</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Settings Modal */}
+      <Modal
+        visible={settingsVisible}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setSettingsVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <Ionicons name="settings-outline" size={20} color={theme.primaryLight} />
+                <Text style={styles.modalTitle}>Settings</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSettingsVisible(false)}
+                style={styles.closeBtn}
+              >
+                <Ionicons name="close" size={22} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Edit Display Name */}
+            <Text style={styles.fieldLabel}>Edit Display Name</Text>
+            <TextInput
+              style={styles.input}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Enter your display name"
+              placeholderTextColor={theme.textTertiary}
+              returnKeyType="done"
+              onSubmitEditing={handleSaveName}
+            />
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveName}>
+              <Text style={styles.saveBtnText}>Save Name</Text>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* Delete Account Button in Red Text */}
+            <TouchableOpacity
+              style={styles.deleteAccountBtn}
+              onPress={handleDeleteAccountPress}
+              disabled={deleting}
+              activeOpacity={0.8}
+            >
+              {deleting ? (
+                <ActivityIndicator color={theme.danger} />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={18} color={theme.danger} />
+                  <Text style={styles.deleteAccountText}>Delete Account</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -176,6 +282,16 @@ const styles = StyleSheet.create({
     color: theme.textTertiary,
     marginTop: 4,
   },
+  settingsBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: theme.cardBackgroundSubtle,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
   statsGrid: {
     flexDirection: 'row',
     gap: 8,
@@ -215,12 +331,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 6,
   },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '800',
     color: theme.textPrimary,
+  },
+  sectionDesc: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    lineHeight: 17,
+    marginBottom: 12,
   },
   tagInfoRow: {
     flexDirection: 'row',
@@ -228,11 +350,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: theme.cardBackgroundSubtle,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.cardBorder,
-    marginBottom: 6,
   },
   tagInfoLabel: {
     fontSize: 12,
@@ -244,11 +365,46 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: theme.primaryLight,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: theme.cardBackground,
+    borderRadius: 22,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: theme.textPrimary,
+  },
+  closeBtn: {
+    padding: 4,
+  },
   fieldLabel: {
     fontSize: 13,
     fontWeight: '700',
     color: theme.textPrimary,
-    marginTop: 14,
+    marginTop: 10,
     marginBottom: 8,
   },
   input: {
@@ -266,7 +422,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.primary,
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderRadius: 14,
     marginTop: 14,
   },
@@ -274,5 +430,26 @@ const styles = StyleSheet.create({
     color: theme.onPrimary,
     fontWeight: '700',
     fontSize: 15,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: theme.cardBorder,
+    marginVertical: 18,
+  },
+  deleteAccountBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  deleteAccountText: {
+    color: theme.danger,
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

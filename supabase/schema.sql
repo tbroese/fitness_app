@@ -89,8 +89,8 @@ CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver_status
 -- Supabase Row Level Security (RLS) & Table Grants for Early Development
 -- ============================================================================
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.leaderboard_users TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.user_workouts TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.leaderboard_users TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_workouts TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.friend_requests TO anon, authenticated;
 
 ALTER TABLE public.leaderboard_users ENABLE ROW LEVEL SECURITY;

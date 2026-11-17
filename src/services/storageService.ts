@@ -474,14 +474,18 @@ export const storageService = {
     };
   },
 
-  async clearAllData(): Promise<void> {
+  async clearAllData(includeProfile: boolean = false): Promise<void> {
     try {
-      await AsyncStorage.multiRemove([
+      const keys = [
         STORAGE_KEYS.PREFERENCES,
         STORAGE_KEYS.WORKOUTS,
         STORAGE_KEYS.STREAK_STATE,
         STORAGE_KEYS.DWELL_SESSION,
-      ]);
+      ];
+      if (includeProfile) {
+        keys.push(STORAGE_KEYS.USER_PROFILE);
+      }
+      await AsyncStorage.multiRemove(keys);
     } catch (e) {
       console.error('Failed to clear data', e);
     }

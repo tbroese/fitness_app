@@ -61,6 +61,7 @@ interface FitnessContextType {
   signInWithAccount: (input: SignInAccountInput) => Promise<{ restoredExisting: boolean }>;
   handleOAuthRedirectUrl: (url: string) => Promise<boolean>;
   signOutAccount: () => Promise<void>;
+  deleteAccount: () => Promise<boolean>;
   setWeeklyGoal: (goal: number) => Promise<void>;
   scheduleGoalForMonday: (goal: number) => Promise<void>;
   cancelPendingGoal: () => Promise<void>;
@@ -867,6 +868,30 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setCurrentDistanceMeters(null);
   };
 
+  const deleteAccount = async (): Promise<boolean> => {
+    const currentId = userProfileRef.current.id;
+    try {
+      if (cloudDatabase.isConfigured() && currentId) {
+        await cloudDatabase.deleteUserAccount(currentId);
+      }
+    } catch (e) {
+      console.warn('Error deleting remote account:', e);
+    }
+
+    await stopGymGeofence();
+    await storageService.clearAllData(true);
+
+    const freshProfile = createDefaultUserProfile();
+    setUserProfile(freshProfile);
+    setPreferences(DEFAULT_PREFERENCES);
+    setStreakState({ ...DEFAULT_STREAK_STATE, userId: freshProfile.id });
+    setWorkouts([]);
+    setDwellState(DEFAULT_DWELL_SESSION);
+    setCurrentDistanceMeters(null);
+    setFriendships({ friends: [], incomingRequests: [], outgoingRequests: [] });
+    return true;
+  };
+
   return (
     <FitnessContext.Provider
       value={{
@@ -885,6 +910,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         signInWithAccount,
         handleOAuthRedirectUrl,
         signOutAccount,
+        deleteAccount,
         setWeeklyGoal,
         scheduleGoalForMonday,
         cancelPendingGoal,

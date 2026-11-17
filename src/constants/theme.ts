@@ -1,38 +1,41 @@
 export const theme = {
-  background: '#0B0F19', // Deep sleek dark background
-  cardBackground: '#131C2E', // Elevated dark surface
-  cardBorder: '#1E293B', // Subtle container border
-  cardBackgroundSubtle: '#182238',
-  
-  textPrimary: '#F8FAFC', // Crisp readable white
-  textSecondary: '#94A3B8', // Muted slate text
-  textTertiary: '#64748B', // Low emphasis text
-  
-  primary: '#3B82F6', // Accent blue
-  primaryLight: '#60A5FA',
+  background: '#0F0F0F', // YouTube-style neutral dark background
+  cardBackground: '#1A1A1A', // Elevated dark surface
+  cardBorder: '#2C2C2C', // Clean neutral border
+  cardBackgroundSubtle: '#222226',
+
+  textPrimary: '#F1F1F1', // Crisp off-white text
+  textSecondary: '#A1A1AA', // Neutral muted text
+  textTertiary: '#71717A', // Low emphasis text
+
+  primary: '#3B82F6', // Familiar interactive blue (buttons, active tabs, pills)
+  onPrimary: '#FFFFFF', // Crisp white text/icons on blue primary surfaces
+  primaryLight: '#60A5FA', // Bright blue for icons & accents on dark cards
   primaryMuted: 'rgba(59, 130, 246, 0.18)',
-  
-  flame: '#FF5722', // Iconic streak flame
-  flameLight: '#FF7043',
-  flameMuted: 'rgba(255, 87, 34, 0.18)',
-  
+  primaryBorder: 'rgba(59, 130, 246, 0.35)',
+
+  brandRed: '#CC0022', // Surgical Inertia red (progress bars)
+  flame: '#E11D48', // Inertia red streak flame
+  flameLight: '#FB7185',
+  flameMuted: 'rgba(225, 29, 72, 0.15)',
+
   success: '#10B981', // Clean green for completed
   successLight: '#34D399',
-  successMuted: 'rgba(16, 185, 129, 0.18)',
-  
+  successMuted: 'rgba(16, 185, 129, 0.16)',
+
   warning: '#F59E0B', // Amber for at risk
-  warningMuted: 'rgba(245, 158, 11, 0.18)',
-  
+  warningMuted: 'rgba(245, 158, 11, 0.16)',
+
   danger: '#EF4444', // Red for streak lost
-  dangerMuted: 'rgba(239, 68, 68, 0.18)',
-  
-  tabBarBackground: '#0D1424',
-  tabBarBorder: '#1E293B',
+  dangerMuted: 'rgba(239, 68, 68, 0.16)',
+
+  tabBarBackground: '#141414',
+  tabBarBorder: '#2C2C2C',
   tabBarActive: '#3B82F6',
-  tabBarInactive: '#64748B',
-  
-  inputBackground: '#0F172A',
-  inputBorder: '#334155',
-  pillBackground: '#1E293B',
+  tabBarInactive: '#71717A',
+
+  inputBackground: '#121212',
+  inputBorder: '#333338',
+  pillBackground: '#222226',
   pillActive: '#3B82F6',
 };

@@ -43,7 +43,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
           </Text>
           <View style={styles.setupBtn}>
             <Text style={styles.setupBtnText}>Setup Gym Location</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={16} color={theme.onPrimary} />
           </View>
         </View>
       </TouchableOpacity>
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderColor: theme.primaryBorder,
   },
   emptyTitle: {
     fontSize: 18,
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   setupBtnText: {
-    color: '#FFFFFF',
+    color: theme.onPrimary,
     fontWeight: '700',
     fontSize: 14,
   },
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginTop: 16,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    borderColor: theme.primaryBorder,
   },
   dwellHeader: {
     flexDirection: 'row',
@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
   },
   dwellProgressFill: {
     height: '100%',
-    backgroundColor: theme.primary,
+    backgroundColor: theme.brandRed,
     borderRadius: 4,
   },
   dwellSub: {

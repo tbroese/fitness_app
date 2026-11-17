@@ -53,8 +53,8 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
             {isReset
               ? 'Streak lost for this week. Goal restarts next week.'
               : needed === 0
-              ? '🎉 Goal achieved for this week!'
-              : `${needed} more workout${needed > 1 ? 's' : ''} needed to avoid streak reset`}
+                ? '🎉 Goal achieved for this week!'
+                : `${needed} more workout${needed > 1 ? 's' : ''} needed to avoid streak reset`}
           </Text>
         </View>
         <View style={styles.fractionBox}>
@@ -77,14 +77,7 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
       {/* Week Day Pills */}
       <View style={styles.daysRow}>
         {weekDays.map((item, idx) => (
-          <View
-            key={idx}
-            style={[
-              styles.dayCol,
-              item.isToday && styles.dayColToday,
-              item.hasWorkout && styles.dayColCompleted,
-            ]}
-          >
+          <View key={idx} style={styles.dayCol}>
             <Text style={[styles.dayText, item.isToday && styles.dayTextToday]}>
               {item.name}
             </Text>
@@ -164,7 +157,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    borderColor: theme.primaryBorder,
   },
   fractionCurrent: {
     fontSize: 22,
@@ -187,7 +180,7 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: theme.primary,
+    backgroundColor: theme.brandRed,
     borderRadius: 5,
   },
   daysRow: {
@@ -199,8 +192,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  dayColToday: {},
-  dayColCompleted: {},
   dayText: {
     fontSize: 11,
     fontWeight: '600',

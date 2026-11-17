@@ -429,18 +429,11 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return false;
       }
 
-      const result = await signInWithAccount({
+      await signInWithAccount({
         fullName: identity.fullName,
         email: identity.email,
         authProvider: identity.provider,
       });
-
-      if (result.restoredExisting) {
-        Alert.alert(
-          'Welcome Back!',
-          `Signed in as ${identity.fullName} and restored your existing streak & tag.`
-        );
-      }
       return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

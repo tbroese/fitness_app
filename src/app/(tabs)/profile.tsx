@@ -9,16 +9,12 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Linking from 'expo-linking';
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
-import { cloudDatabase, getOAuthRedirectUri } from '../../services/cloud';
 import { theme } from '../../constants/theme';
 
 export default function ProfileScreen() {
-  const { userProfile, streakState, workouts, updateUserProfile, signOutAccount } =
-    useFitness();
+  const { userProfile, streakState, workouts, updateUserProfile } = useFitness();
 
   const [fullName, setFullName] = useState(userProfile.fullName);
 
@@ -45,20 +41,6 @@ export default function ProfileScreen() {
     Alert.alert('Saved', 'Your display name has been updated.');
   };
 
-  const handleLinkOAuth = async (provider: 'google' | 'apple') => {
-    const redirectUri = getOAuthRedirectUri();
-    const authUrl = cloudDatabase.getOAuthAuthorizeUrl(provider, redirectUri);
-    if (!authUrl) {
-      Alert.alert('Not Configured', 'Supabase URL is not configured yet.');
-      return;
-    }
-    await Linking.openURL(authUrl);
-  };
-
-  const isLinkedOAuth =
-    Boolean(userProfile.email) &&
-    (userProfile.authProvider === 'google' || userProfile.authProvider === 'apple');
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -74,31 +56,7 @@ export default function ProfileScreen() {
                 <Text style={styles.tagBadgeText}>#{userProfile.userTag || '4821'}</Text>
               </View>
             </View>
-            <Text style={styles.heroMeta}>
-              {userProfile.email
-                ? `${userProfile.email} • Since ${memberSince}`
-                : `Member since ${memberSince}`}
-            </Text>
-          </View>
-          <View style={styles.offlineBadge}>
-            <Ionicons
-              name={
-                userProfile.authProvider === 'google'
-                  ? 'logo-google'
-                  : userProfile.authProvider === 'apple'
-                  ? 'logo-apple'
-                  : 'cloud-done-outline'
-              }
-              size={12}
-              color={theme.successLight}
-            />
-            <Text style={styles.offlineBadgeText}>
-              {isLinkedOAuth
-                ? userProfile.authProvider === 'google'
-                  ? 'Google'
-                  : 'Apple ID'
-                : 'Synced'}
-            </Text>
+            <Text style={styles.heroMeta}>Member since {memberSince}</Text>
           </View>
         </View>
 
@@ -122,11 +80,11 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Edit Profile & Linked Account Form */}
+        {/* Edit Profile Form */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Ionicons name="person-circle-outline" size={22} color={theme.primaryLight} />
-            <Text style={styles.sectionTitle}>Profile & Account</Text>
+            <Text style={styles.sectionTitle}>Profile</Text>
           </View>
 
           <View style={styles.tagInfoRow}>
@@ -147,35 +105,6 @@ export default function ProfileScreen() {
 
           <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
             <Text style={styles.saveBtnText}>Save Name</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.fieldLabel}>One-Tap Account Backup</Text>
-          <View style={styles.providerToggleRow}>
-            <TouchableOpacity
-              style={styles.providerPill}
-              onPress={() => handleLinkOAuth('google')}
-            >
-              <Ionicons name="logo-google" size={15} color={theme.textPrimary} />
-              <Text style={styles.providerPillText}>Link Google</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.providerPill}
-              onPress={() => handleLinkOAuth('apple')}
-            >
-              <Ionicons name="logo-apple" size={16} color={theme.textPrimary} />
-              <Text style={styles.providerPillText}>Link Apple ID</Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.signOutBtn}
-            onPress={async () => {
-              await signOutAccount();
-              router.push('/');
-            }}
-          >
-            <Ionicons name="log-out-outline" size={18} color={theme.textSecondary} />
-            <Text style={styles.signOutBtnText}>Sign Out (Test Sign-In Modal)</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -246,22 +175,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.textTertiary,
     marginTop: 4,
-  },
-  offlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: theme.successMuted,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  offlineBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: theme.successLight,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -338,27 +251,6 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 8,
   },
-  providerToggleRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  providerPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 11,
-    borderRadius: 10,
-    backgroundColor: theme.inputBackground,
-    borderWidth: 1,
-    borderColor: theme.inputBorder,
-  },
-  providerPillText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.textPrimary,
-  },
   input: {
     backgroundColor: theme.inputBackground,
     borderWidth: 1,
@@ -382,22 +274,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 15,
-  },
-  signOutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: theme.cardBackgroundSubtle,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-    paddingVertical: 12,
-    borderRadius: 14,
-    marginTop: 14,
-  },
-  signOutBtnText: {
-    color: theme.textSecondary,
-    fontWeight: '700',
-    fontSize: 13,
   },
 });

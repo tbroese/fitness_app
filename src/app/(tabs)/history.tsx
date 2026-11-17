@@ -8,6 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
+import { WorkoutContributionGraph } from '../../components/WorkoutContributionGraph';
 import { WorkoutSession } from '../../types/fitness';
 import { theme } from '../../constants/theme';
 
@@ -78,6 +79,9 @@ export default function HistoryScreen() {
             <Text style={styles.statLabel}>Best Streak</Text>
           </View>
         </View>
+
+        {/* GitHub-style Contribution Graph */}
+        <WorkoutContributionGraph workouts={workouts} />
 
         {/* Workout List */}
         {workouts.length === 0 ? (

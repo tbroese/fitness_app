@@ -116,10 +116,10 @@ export const FirstTimeNameModal: React.FC<FirstTimeNameModalProps> = ({
             activeOpacity={0.85}
           >
             {submitting ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={theme.onPrimary} />
             ) : (
               <>
-                <Ionicons name="logo-google" size={18} color="#FFFFFF" />
+                <Ionicons name="logo-google" size={18} color={theme.onPrimary} />
                 <Text style={styles.oauthBtnText}>Continue with Google</Text>
               </>
             )}
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   oauthBtnText: {
-    color: '#FFFFFF',
+    color: theme.onPrimary,
     fontWeight: '700',
     fontSize: 15,
   },

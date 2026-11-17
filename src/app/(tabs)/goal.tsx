@@ -38,10 +38,10 @@ export default function GoalSetupScreen() {
 
   const initialMatchedPartner = preferences.gymLocation
     ? PARTNERED_GYMS.find(
-        (g) =>
-          g.id === preferences.gymLocation?.id ||
-          g.name.toLowerCase() === preferences.gymLocation?.name.toLowerCase()
-      ) || null
+      (g) =>
+        g.id === preferences.gymLocation?.id ||
+        g.name.toLowerCase() === preferences.gymLocation?.name.toLowerCase()
+    ) || null
     : null;
 
   const isSavedCustomGym = Boolean(preferences.gymLocation && !initialMatchedPartner);
@@ -312,7 +312,7 @@ export default function GoalSetupScreen() {
               <Ionicons
                 name="business-outline"
                 size={16}
-                color={gymMode === 'existing' ? '#FFFFFF' : theme.textSecondary}
+                color={gymMode === 'existing' ? theme.onPrimary : theme.textSecondary}
               />
               <Text
                 style={[
@@ -335,7 +335,7 @@ export default function GoalSetupScreen() {
               <Ionicons
                 name="add-circle-outline"
                 size={16}
-                color={gymMode === 'custom' ? '#FFFFFF' : theme.textSecondary}
+                color={gymMode === 'custom' ? theme.onPrimary : theme.textSecondary}
               />
               <Text
                 style={[
@@ -506,7 +506,7 @@ export default function GoalSetupScreen() {
 
           {/* Save Button */}
           <TouchableOpacity style={styles.saveBtn} onPress={handleSaveGym}>
-            <Ionicons name="save-outline" size={18} color="#FFFFFF" />
+            <Ionicons name="save-outline" size={18} color={theme.onPrimary} />
             <Text style={styles.saveBtnText}>Save Gym Settings</Text>
           </TouchableOpacity>
         </View>
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
     color: theme.textPrimary,
   },
   goalPillTextSelected: {
-    color: '#FFFFFF',
+    color: theme.onPrimary,
   },
   goalPillTextPending: {
     color: theme.warning,
@@ -675,7 +675,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   goalPillSubSelected: {
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   goalPillSubPending: {
     color: theme.warning,
@@ -772,7 +772,7 @@ const styles = StyleSheet.create({
     color: theme.textSecondary,
   },
   modeToggleTextActive: {
-    color: '#FFFFFF',
+    color: theme.onPrimary,
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -886,7 +886,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    borderColor: theme.primaryBorder,
   },
   gpsDetectText: {
     fontSize: 13,
@@ -908,7 +908,7 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
   saveBtnText: {
-    color: '#FFFFFF',
+    color: theme.onPrimary,
     fontWeight: '700',
     fontSize: 15,
   },

@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderColor: theme.primaryBorder,
   },
   heroInfo: {
     flex: 1,
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderColor: theme.primaryBorder,
   },
   tagBadgeText: {
     fontSize: 12,
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   saveBtnText: {
-    color: '#FFFFFF',
+    color: theme.onPrimary,
     fontWeight: '700',
     fontSize: 15,
   },

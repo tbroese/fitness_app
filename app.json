@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Fitness Streak Tracker",
+    "name": "Inertia",
     "slug": "fitnessapp",
     "scheme": "fitnesstracker",
     "version": "1.0.0",
@@ -25,10 +25,8 @@
       "package": "com.tannerbroese.fitnesstracker",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#181818",
+        "foregroundImage": "./assets/icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

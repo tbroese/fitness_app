@@ -34,20 +34,20 @@ const CATEGORIES: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
 }[] = [
-  { key: 'global', label: 'Global', icon: 'globe-outline' },
-  { key: 'gym', label: 'Gym', icon: 'barbell-outline' },
-  { key: 'friends', label: 'Friends', icon: 'people-outline' },
-];
+    { key: 'global', label: 'Global', icon: 'globe-outline' },
+    { key: 'gym', label: 'Gym', icon: 'barbell-outline' },
+    { key: 'friends', label: 'Friends', icon: 'people-outline' },
+  ];
 
 const FILTERS: {
   key: LeaderboardFilter;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
 }[] = [
-  { key: 'currentStreak', label: 'Current Streak', icon: 'flame-outline' },
-  { key: 'bestStreak', label: 'Best Streak', icon: 'trophy-outline' },
-  { key: 'totalGymTime', label: 'Total Gym Time', icon: 'time-outline' },
-];
+    { key: 'currentStreak', label: 'Current Streak', icon: 'flame-outline' },
+    { key: 'bestStreak', label: 'Best Streak', icon: 'trophy-outline' },
+    { key: 'totalGymTime', label: 'Total Gym Time', icon: 'time-outline' },
+  ];
 
 function formatGymTime(minutes: number): string {
   if (minutes < 60) {
@@ -524,7 +524,7 @@ export default function LeaderboardScreen() {
                 <Ionicons
                   name={cat.icon}
                   size={16}
-                  color={active ? '#FFFFFF' : theme.textSecondary}
+                  color={active ? theme.onPrimary : theme.textSecondary}
                 />
                 <Text
                   style={[
@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
     color: theme.textSecondary,
   },
   categoryTabTextActive: {
-    color: '#FFFFFF',
+    color: theme.onPrimary,
   },
   tabNotifDot: {
     backgroundColor: theme.warning,
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
   tabNotifDotText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#0B0F19',
+    color: theme.background,
   },
   filterSection: {
     marginHorizontal: 16,
@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderColor: theme.primaryBorder,
   },
   yourTagValueText: {
     fontSize: 12,
@@ -915,7 +915,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   currentUserCard: {
-    borderColor: 'rgba(59, 130, 246, 0.45)',
+    borderColor: theme.primaryBorder,
   },
   rankBadge: {
     width: 34,
@@ -947,7 +947,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderColor: theme.primaryBorder,
   },
   userInfo: {
     flex: 1,
@@ -975,7 +975,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.4)',
+    borderColor: theme.primaryBorder,
   },
   youBadgeText: {
     fontSize: 9,
@@ -1006,7 +1006,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderColor: theme.primaryBorder,
   },
   addFriendQuickBtnText: {
     fontSize: 10,
@@ -1056,7 +1056,7 @@ const styles = StyleSheet.create({
     borderColor: theme.cardBorder,
   },
   miniStatPillActive: {
-    borderColor: 'rgba(59, 130, 246, 0.5)',
+    borderColor: theme.primaryBorder,
     backgroundColor: theme.primaryMuted,
   },
   miniStatText: {

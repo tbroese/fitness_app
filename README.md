@@ -85,3 +85,6 @@ npx expo start
 npm run typecheck    # TypeScript compiler check
 npm test             # Verify streak calculations & reset logic
 ```
+note: change the ite url in supabase before testing
+fitnesstracker://auth-callback
+exp://192.168.50.188:8081/--/auth-callback

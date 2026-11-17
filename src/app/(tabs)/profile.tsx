@@ -16,7 +16,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
+import { WeightUnit } from '../../types/fitness';
+import {
+  convertFromKg,
+  convertToKg,
+  formatWeightWithUnit,
+} from '../../utils/weightUtils';
 import { theme } from '../../constants/theme';
+
+type LiftKey = 'squat' | 'bench' | 'deadlift';
+
+const LIFT_LABELS: Record<LiftKey, string> = {
+  squat: 'Squat PR',
+  bench: 'Bench PR',
+  deadlift: 'Deadlift PR',
+};
 
 export default function ProfileScreen() {
   const {
@@ -24,6 +38,7 @@ export default function ProfileScreen() {
     streakState,
     workouts,
     updateUserProfile,
+    updateLiftPrs,
     deleteAccount,
   } = useFitness();
 
@@ -31,9 +46,22 @@ export default function ProfileScreen() {
   const [fullName, setFullName] = useState(userProfile.fullName);
   const [deleting, setDeleting] = useState(false);
 
+  // Edit PR modal state
+  const [editingLift, setEditingLift] = useState<LiftKey | null>(null);
+  const [prUnit, setPrUnit] = useState<WeightUnit>(
+    userProfile.preferredWeightUnit || 'lbs'
+  );
+  const [prInput, setPrInput] = useState('');
+
   useEffect(() => {
     setFullName(userProfile.fullName);
   }, [userProfile.fullName]);
+
+  useEffect(() => {
+    if (userProfile.preferredWeightUnit) {
+      setPrUnit(userProfile.preferredWeightUnit);
+    }
+  }, [userProfile.preferredWeightUnit]);
 
   const totalMinutes = workouts.reduce((sum, w) => sum + (w.durationMinutes || 0), 0);
 
@@ -42,6 +70,52 @@ export default function ProfileScreen() {
     day: 'numeric',
     year: 'numeric',
   });
+
+  const displayUnit: WeightUnit = userProfile.preferredWeightUnit || 'lbs';
+  const squatKg = userProfile.squatPrKg ?? 0;
+  const benchKg = userProfile.benchPrKg ?? 0;
+  const deadliftKg = userProfile.deadliftPrKg ?? 0;
+
+  const openEditPrModal = (lift: LiftKey) => {
+    const unit = userProfile.preferredWeightUnit || 'lbs';
+    const currentKg =
+      lift === 'squat' ? squatKg : lift === 'bench' ? benchKg : deadliftKg;
+    const converted = convertFromKg(currentKg, unit);
+    setPrUnit(unit);
+    setPrInput(converted > 0 ? String(converted) : '');
+    setEditingLift(lift);
+  };
+
+  const handleToggleModalUnit = (nextUnit: WeightUnit) => {
+    if (nextUnit === prUnit) return;
+    const parsed = parseFloat(prInput);
+    if (!isNaN(parsed) && parsed > 0) {
+      const asKg = convertToKg(parsed, prUnit);
+      const converted = convertFromKg(asKg, nextUnit);
+      setPrInput(converted > 0 ? String(converted) : '');
+    }
+    setPrUnit(nextUnit);
+  };
+
+  const handleSavePr = async () => {
+    if (!editingLift) return;
+    const trimmed = prInput.trim();
+    const parsed = trimmed === '' ? 0 : parseFloat(trimmed);
+
+    if (isNaN(parsed) || parsed < 0) {
+      Alert.alert('Invalid Weight', 'Please enter a valid number for your PR.');
+      return;
+    }
+
+    const kgValue = convertToKg(parsed, prUnit);
+    await updateLiftPrs({
+      squatPrKg: editingLift === 'squat' ? kgValue : undefined,
+      benchPrKg: editingLift === 'bench' ? kgValue : undefined,
+      deadliftPrKg: editingLift === 'deadlift' ? kgValue : undefined,
+      preferredWeightUnit: prUnit,
+    });
+    setEditingLift(null);
+  };
 
   const handleSaveName = async () => {
     const trimmed = fullName.trim();
@@ -133,6 +207,44 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Personal Records (Squat, Bench, Deadlift) */}
+        <View style={styles.prGrid}>
+          <TouchableOpacity
+            style={styles.prBox}
+            onPress={() => openEditPrModal('squat')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.prValue}>
+              {squatKg > 0 ? formatWeightWithUnit(squatKg, displayUnit) : 'Tap to set'}
+            </Text>
+            <Text style={styles.prLabel}>Squat PR</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.prBox}
+            onPress={() => openEditPrModal('bench')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.prValue}>
+              {benchKg > 0 ? formatWeightWithUnit(benchKg, displayUnit) : 'Tap to set'}
+            </Text>
+            <Text style={styles.prLabel}>Bench PR</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.prBox}
+            onPress={() => openEditPrModal('deadlift')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.prValue}>
+              {deadliftKg > 0
+                ? formatWeightWithUnit(deadliftKg, displayUnit)
+                : 'Tap to set'}
+            </Text>
+            <Text style={styles.prLabel}>Deadlift PR</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Unique Friend Tag Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -150,6 +262,90 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Edit Lift PR Modal */}
+      <Modal
+        visible={editingLift !== null}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setEditingLift(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <Ionicons name="barbell-outline" size={20} color={theme.primaryLight} />
+                <Text style={styles.modalTitle}>
+                  {editingLift ? `Edit ${LIFT_LABELS[editingLift]}` : 'Edit PR'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setEditingLift(null)}
+                style={styles.closeBtn}
+              >
+                <Ionicons name="close" size={22} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* lbs / kg Toggle */}
+            <View style={styles.unitToggleRow}>
+              <TouchableOpacity
+                style={[
+                  styles.unitToggleBtn,
+                  prUnit === 'lbs' && styles.unitToggleBtnActive,
+                ]}
+                onPress={() => handleToggleModalUnit('lbs')}
+              >
+                <Text
+                  style={[
+                    styles.unitToggleText,
+                    prUnit === 'lbs' && styles.unitToggleTextActive,
+                  ]}
+                >
+                  lbs
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.unitToggleBtn,
+                  prUnit === 'kg' && styles.unitToggleBtnActive,
+                ]}
+                onPress={() => handleToggleModalUnit('kg')}
+              >
+                <Text
+                  style={[
+                    styles.unitToggleText,
+                    prUnit === 'kg' && styles.unitToggleTextActive,
+                  ]}
+                >
+                  kg
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.fieldLabel}>Weight ({prUnit})</Text>
+            <TextInput
+              style={styles.input}
+              value={prInput}
+              onChangeText={setPrInput}
+              keyboardType="decimal-pad"
+              placeholder={`Enter ${prUnit} (e.g. ${prUnit === 'lbs' ? '225' : '100'})`}
+              placeholderTextColor={theme.textTertiary}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleSavePr}
+            />
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSavePr}>
+              <Text style={styles.saveBtnText}>Save PR</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Settings Modal */}
       <Modal
@@ -295,7 +491,8 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     gap: 8,
-    marginVertical: 14,
+    marginTop: 14,
+    marginBottom: 8,
   },
   statBox: {
     flex: 1,
@@ -313,6 +510,33 @@ const styles = StyleSheet.create({
     color: theme.textPrimary,
   },
   statLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  prGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  prBox: {
+    flex: 1,
+    backgroundColor: theme.cardBackground,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  prValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: theme.primaryLight,
+  },
+  prLabel: {
     fontSize: 10,
     fontWeight: '600',
     color: theme.textSecondary,
@@ -399,6 +623,34 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     padding: 4,
+  },
+  unitToggleRow: {
+    flexDirection: 'row',
+    backgroundColor: theme.inputBackground,
+    borderRadius: 10,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  unitToggleBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  unitToggleBtnActive: {
+    backgroundColor: theme.primary,
+  },
+  unitToggleText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.textSecondary,
+  },
+  unitToggleTextActive: {
+    color: theme.onPrimary,
   },
   fieldLabel: {
     fontSize: 13,

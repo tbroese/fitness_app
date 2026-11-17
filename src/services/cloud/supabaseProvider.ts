@@ -60,6 +60,9 @@ interface SupabaseLeaderboardRow {
   total_gym_time_minutes: number;
   workouts_count: number;
   weekly_goal: number;
+  squat_pr_kg?: number;
+  bench_pr_kg?: number;
+  deadlift_pr_kg?: number;
   updated_at: string;
 }
 
@@ -86,6 +89,9 @@ function mapRowToLeaderboardUser(row: SupabaseLeaderboardRow): RemoteLeaderboard
     totalGymTimeMinutes: row.total_gym_time_minutes ?? 0,
     workoutsCount: row.workouts_count ?? 0,
     weeklyGoal: row.weekly_goal ?? 1,
+    squatPrKg: row.squat_pr_kg ?? 0,
+    benchPrKg: row.bench_pr_kg ?? 0,
+    deadliftPrKg: row.deadlift_pr_kg ?? 0,
     updatedAt: row.updated_at,
   };
 }
@@ -213,6 +219,9 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
         total_gym_time_minutes: data.totalGymTimeMinutes,
         workouts_count: data.workoutsCount,
         weekly_goal: data.weeklyGoal,
+        squat_pr_kg: data.squatPrKg ?? 0,
+        bench_pr_kg: data.benchPrKg ?? 0,
+        deadlift_pr_kg: data.deadliftPrKg ?? 0,
         updated_at: nowIso,
       };
 
@@ -282,7 +291,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
     try {
       const limit = params.limit || 100;
       const queryParts: string[] = [
-        'select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,current_streak,best_streak,total_gym_time_minutes,workouts_count,weekly_goal,updated_at',
+        'select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,current_streak,best_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at',
         `limit=${limit}`,
       ];
 
@@ -332,7 +341,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
 
     try {
       const allRes = await fetch(
-        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,current_streak,best_streak,total_gym_time_minutes,workouts_count,weekly_goal,updated_at&limit=100`,
+        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,current_streak,best_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at&limit=100`,
         {
           method: 'GET',
           headers: this.getHeaders(),

@@ -2,6 +2,7 @@ export const FIXED_DWELL_MINUTES = 15;
 export const DEFAULT_GEOFENCE_RADIUS_METERS = 300;
 
 export type AuthProviderType = 'google' | 'apple' | 'device';
+export type WeightUnit = 'lbs' | 'kg';
 
 export interface UserProfile {
   id: string; // Unique UUID for cloud sync & leaderboard
@@ -10,6 +11,10 @@ export interface UserProfile {
   email?: string | null; // Linked Google or Apple email to prevent duplicate accounts
   authProvider?: AuthProviderType; // 'google' | 'apple' | 'device'
   authUserId?: string | null; // OAuth / Supabase Auth subject ID
+  squatPrKg?: number;
+  benchPrKg?: number;
+  deadliftPrKg?: number;
+  preferredWeightUnit?: WeightUnit;
   hasCompletedOnboarding: boolean; // False until first-time sign-in is completed
   createdAt: string; // ISO string
   updatedAt: string; // ISO string

@@ -10,6 +10,7 @@ import {
   DEFAULT_GEOFENCE_RADIUS_METERS,
 } from '../types/fitness';
 import { formatDateToYYYYMMDD, getIsoWeekId } from '../utils/dateUtils';
+import { AuthSession } from './cloud/types';
 import { recordCompletedWorkout } from './streakManager';
 
 const STORAGE_KEYS = {
@@ -18,6 +19,7 @@ const STORAGE_KEYS = {
   WORKOUTS: '@fitness_workouts_v1',
   STREAK_STATE: '@fitness_streak_state_v1',
   DWELL_SESSION: '@fitness_dwell_session_v1',
+  AUTH_SESSION: '@fitness_auth_session_v1',
 };
 
 function generateOfflineUserId(): string {
@@ -541,11 +543,39 @@ export const storageService = {
         STORAGE_KEYS.DWELL_SESSION,
       ];
       if (includeProfile) {
-        keys.push(STORAGE_KEYS.USER_PROFILE);
+        keys.push(STORAGE_KEYS.USER_PROFILE, STORAGE_KEYS.AUTH_SESSION);
       }
       await AsyncStorage.multiRemove(keys);
     } catch (e) {
       console.error('Failed to clear data', e);
+    }
+  },
+
+  async getAuthSession(): Promise<AuthSession | null> {
+    try {
+      const json = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
+      if (json) {
+        return JSON.parse(json) as AuthSession;
+      }
+    } catch (e) {
+      console.error('Failed to load auth session', e);
+    }
+    return null;
+  },
+
+  async saveAuthSession(session: AuthSession): Promise<void> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
+    } catch (e) {
+      console.error('Failed to save auth session', e);
+    }
+  },
+
+  async clearAuthSession(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+    } catch (e) {
+      console.error('Failed to clear auth session', e);
     }
   },
 };

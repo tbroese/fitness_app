@@ -10,6 +10,7 @@ import {
   DwellSessionState,
   AuthProviderType,
   WeightUnit,
+  UserGender,
   FIXED_DWELL_MINUTES,
   DEFAULT_GEOFENCE_RADIUS_METERS,
 } from '../types/fitness';
@@ -58,7 +59,15 @@ interface FitnessContextType {
   isCloudConfigured: boolean;
   isSyncingCloud: boolean;
   friendships: FriendshipsOverview;
-  updateUserProfile: (fullName: string, options?: { email?: string; authProvider?: AuthProviderType }) => Promise<void>;
+  updateUserProfile: (
+    fullName: string,
+    options?: {
+      email?: string;
+      authProvider?: AuthProviderType;
+      gender?: UserGender;
+      age?: number | null;
+    }
+  ) => Promise<void>;
   updateLiftPrs: (updates: {
     squatPrKg?: number;
     benchPrKg?: number;
@@ -156,6 +165,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           email: profileSnap.email ?? null,
           authProvider: profileSnap.authProvider || 'device',
           authUserId: profileSnap.authUserId ?? null,
+          gender: profileSnap.gender ?? null,
+          age: profileSnap.age ?? null,
           gymId: prefsSnap.gymLocation?.id || null,
           gymName: prefsSnap.gymLocation?.name || null,
           isPartnered: Boolean(prefsSnap.gymLocation?.isPartnered),
@@ -345,7 +356,12 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Save user's Full Name locally on device & sync to cloud
   const updateUserProfile = async (
     fullName: string,
-    options?: { email?: string; authProvider?: AuthProviderType }
+    options?: {
+      email?: string;
+      authProvider?: AuthProviderType;
+      gender?: UserGender;
+      age?: number | null;
+    }
   ) => {
     const trimmed = fullName.trim();
     const updatedProfile: UserProfile = {
@@ -354,6 +370,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       userTag: userProfile.userTag || generateUserTag(userProfile.id),
       email: options?.email !== undefined ? options.email.trim().toLowerCase() || null : userProfile.email,
       authProvider: options?.authProvider || userProfile.authProvider || 'device',
+      gender: options?.gender !== undefined ? options.gender : userProfile.gender ?? null,
+      age: options?.age !== undefined ? options.age : userProfile.age ?? null,
       hasCompletedOnboarding: Boolean(trimmed),
       updatedAt: new Date().toISOString(),
     };
@@ -430,6 +448,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           userTag: existingRemote.userTag,
           email: cleanEmail,
           authProvider: input.authProvider,
+          gender: existingRemote.gender ?? userProfile.gender ?? null,
+          age: existingRemote.age ?? userProfile.age ?? null,
           squatPrKg: existingRemote.squatPrKg ?? userProfile.squatPrKg ?? 0,
           benchPrKg: existingRemote.benchPrKg ?? userProfile.benchPrKg ?? 0,
           deadliftPrKg: existingRemote.deadliftPrKg ?? userProfile.deadliftPrKg ?? 0,

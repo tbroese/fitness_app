@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS public.leaderboard_users (
   email TEXT,
   auth_provider TEXT DEFAULT 'device',
   auth_user_id TEXT,
+  gender TEXT,
+  age INTEGER,
   gym_id TEXT,
   gym_name TEXT,
   is_partnered BOOLEAN NOT NULL DEFAULT FALSE,

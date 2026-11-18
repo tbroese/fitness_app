@@ -3,6 +3,7 @@ export const DEFAULT_GEOFENCE_RADIUS_METERS = 300;
 
 export type AuthProviderType = 'google' | 'apple' | 'device';
 export type WeightUnit = 'lbs' | 'kg';
+export type UserGender = 'male' | 'female' | null;
 
 export interface UserProfile {
   id: string; // Unique UUID for cloud sync & leaderboard
@@ -11,6 +12,8 @@ export interface UserProfile {
   email?: string | null; // Linked Google or Apple email to prevent duplicate accounts
   authProvider?: AuthProviderType; // 'google' | 'apple' | 'device'
   authUserId?: string | null; // OAuth / Supabase Auth subject ID
+  gender?: UserGender; // Optional: 'male' | 'female' | null
+  age?: number | null; // Optional age in years
   squatPrKg?: number;
   benchPrKg?: number;
   deadliftPrKg?: number;

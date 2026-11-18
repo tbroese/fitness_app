@@ -20,8 +20,11 @@ CREATE TABLE IF NOT EXISTS public.leaderboard_users (
   auth_user_id TEXT,
   gym_id TEXT,
   gym_name TEXT,
+  is_partnered BOOLEAN NOT NULL DEFAULT FALSE,
   current_streak INTEGER NOT NULL DEFAULT 0,
   best_streak INTEGER NOT NULL DEFAULT 0,
+  partner_streak INTEGER NOT NULL DEFAULT 0,
+  best_partner_streak INTEGER NOT NULL DEFAULT 0,
   total_gym_time_minutes INTEGER NOT NULL DEFAULT 0,
   workouts_count INTEGER NOT NULL DEFAULT 0,
   weekly_goal INTEGER NOT NULL DEFAULT 1,
@@ -63,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.user_workouts (
   week_id TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL DEFAULT 15,
   verified_by_gps BOOLEAN NOT NULL DEFAULT TRUE,
+  is_partnered BOOLEAN NOT NULL DEFAULT FALSE,
   workout_timestamp TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

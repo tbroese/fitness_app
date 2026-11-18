@@ -8,11 +8,19 @@ import { STREAK_LOST_MESSAGE } from '../services/streakManager';
 interface StreakCardProps {
   streakState: StreakState;
   weeklyGoal: number;
+  isPartneredGym?: boolean;
 }
 
-export const StreakCard: React.FC<StreakCardProps> = ({ streakState, weeklyGoal }) => {
+export const StreakCard: React.FC<StreakCardProps> = ({
+  streakState,
+  weeklyGoal,
+  isPartneredGym,
+}) => {
   const isAtRisk = streakState.streakStatus === 'at_risk';
   const isReset = streakState.streakStatus === 'reset';
+  const partnerStreak = streakState.partnerStreak ?? 0;
+  const showSplitBreakdown =
+    partnerStreak !== streakState.currentStreak || isPartneredGym === false;
 
   return (
     <View style={[styles.container, isReset && styles.containerReset, isAtRisk && styles.containerAtRisk]}>
@@ -31,7 +39,9 @@ export const StreakCard: React.FC<StreakCardProps> = ({ streakState, weeklyGoal 
             />
           </View>
           <View>
-            <Text style={styles.label}>VISIT STREAK</Text>
+            <Text style={styles.label}>
+              {showSplitBreakdown ? 'PERSONAL STREAK' : 'VISIT STREAK'}
+            </Text>
             <Text style={styles.streakCount}>
               {streakState.currentStreak} <Text style={styles.streakUnit}>Workouts</Text>
             </Text>
@@ -43,6 +53,20 @@ export const StreakCard: React.FC<StreakCardProps> = ({ streakState, weeklyGoal 
           <Text style={styles.bestValue}>{streakState.bestStreak} 🔥</Text>
         </View>
       </View>
+
+      {/* Split Breakdown (Only shown when Personal & Partnered streaks differ or on a Custom Gym) */}
+      {showSplitBreakdown && (
+        <View style={styles.splitRow}>
+          <View style={styles.splitPill}>
+            <Text style={styles.splitLabel}>Personal (Friends)</Text>
+            <Text style={styles.splitValue}>{streakState.currentStreak} 🔥</Text>
+          </View>
+          <View style={styles.splitPill}>
+            <Text style={styles.splitLabel}>Verified Gym (Global)</Text>
+            <Text style={styles.splitValue}>{partnerStreak} 🏟️</Text>
+          </View>
+        </View>
+      )}
 
       {/* Status Banner */}
       <View style={styles.statusContainer}>
@@ -137,6 +161,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: theme.textSecondary,
+  },
+  splitRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+  },
+  splitPill: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackgroundSubtle,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  splitLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.textSecondary,
+  },
+  splitValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.textPrimary,
   },
   bestBadge: {
     alignItems: 'flex-end',

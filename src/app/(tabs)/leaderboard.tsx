@@ -33,6 +33,7 @@ interface LeaderboardEntry {
   userTag: string;
   isCurrentUser: boolean;
   gymName: string;
+  isPartnered: boolean;
   currentStreak: number;
   bestStreak: number;
   totalGymTimeMinutes: number;
@@ -177,14 +178,20 @@ export default function LeaderboardScreen() {
       const squat = userProfile.squatPrKg ?? 0;
       const bench = userProfile.benchPrKg ?? 0;
       const deadlift = userProfile.deadliftPrKg ?? 0;
+      const usePartnerStreak = selectedCategory !== 'friends';
       return {
         id: userProfile.id || 'current-user',
         name: userProfile.fullName || 'You',
         userTag: userProfile.userTag || '4821',
         isCurrentUser: true,
         gymName: preferences.gymLocation?.name || 'No Gym Selected',
-        currentStreak: streakState.currentStreak,
-        bestStreak: streakState.bestStreak,
+        isPartnered: Boolean(preferences.gymLocation?.isPartnered),
+        currentStreak: usePartnerStreak
+          ? streakState.partnerStreak ?? 0
+          : streakState.currentStreak,
+        bestStreak: usePartnerStreak
+          ? streakState.bestPartnerStreak ?? 0
+          : streakState.bestStreak,
         totalGymTimeMinutes,
         squatPrKg: squat,
         benchPrKg: bench,
@@ -192,7 +199,7 @@ export default function LeaderboardScreen() {
         totalPrKg: squat + bench + deadlift,
       };
     },
-    [userProfile, preferences.gymLocation, streakState, totalGymTimeMinutes]
+    [userProfile, preferences.gymLocation, streakState, totalGymTimeMinutes, selectedCategory]
   );
 
   const friendIdSet = useMemo(
@@ -221,8 +228,13 @@ export default function LeaderboardScreen() {
     const otherEntries: LeaderboardEntry[] = sourceUsers
       .filter((u) => u.id !== currentUserEntry.id)
       .filter((u) => {
+        if (selectedCategory === 'global' || selectedCategory === 'gym') {
+          if (!u.isPartnered) return false;
+        }
         if (selectedCategory === 'gym') {
-          if (!preferences.gymLocation?.name) return false;
+          if (!preferences.gymLocation?.name || !preferences.gymLocation?.isPartnered) {
+            return false;
+          }
           return (
             u.gymName.toLowerCase() === preferences.gymLocation.name.toLowerCase() ||
             (preferences.gymLocation.id && u.gymId === preferences.gymLocation.id)
@@ -234,14 +246,16 @@ export default function LeaderboardScreen() {
         const squat = u.squatPrKg ?? 0;
         const bench = u.benchPrKg ?? 0;
         const deadlift = u.deadliftPrKg ?? 0;
+        const usePartnerStreak = selectedCategory !== 'friends';
         return {
           id: u.id,
           name: u.fullName || 'Athlete',
           userTag: u.userTag || '0000',
           isCurrentUser: false,
           gymName: u.gymName || 'No Gym Selected',
-          currentStreak: u.currentStreak,
-          bestStreak: u.bestStreak,
+          isPartnered: Boolean(u.isPartnered),
+          currentStreak: usePartnerStreak ? u.partnerStreak ?? 0 : u.currentStreak,
+          bestStreak: usePartnerStreak ? u.bestPartnerStreak ?? 0 : u.bestStreak,
           totalGymTimeMinutes: u.totalGymTimeMinutes,
           squatPrKg: squat,
           benchPrKg: bench,
@@ -250,7 +264,11 @@ export default function LeaderboardScreen() {
         };
       });
 
-    const list = [currentUserEntry, ...otherEntries];
+    const includeCurrentUser =
+      selectedCategory === 'friends' || currentUserEntry.isPartnered;
+    const list = includeCurrentUser
+      ? [currentUserEntry, ...otherEntries]
+      : [...otherEntries];
     list.sort((a, b) => {
       if (selectedFilter === 'currentStreak') return b.currentStreak - a.currentStreak;
       if (selectedFilter === 'bestStreak') return b.bestStreak - a.bestStreak;
@@ -423,6 +441,7 @@ export default function LeaderboardScreen() {
 
           <Text style={styles.gymSubtitle} numberOfLines={1}>
             {item.gymName}
+            {!item.isPartnered && item.gymName !== 'No Gym Selected' ? ' • Custom' : ''}
           </Text>
 
           <View style={styles.miniStatsRow}>
@@ -712,6 +731,16 @@ export default function LeaderboardScreen() {
           </View>
         </View>
 
+        {/* Custom Gym Notice on Global & Gym Tabs */}
+        {selectedCategory !== 'friends' && !currentUserEntry.isPartnered && (
+          <View style={styles.customGymNotice}>
+            <Ionicons name="shield-outline" size={16} color={theme.warning} />
+            <Text style={styles.customGymNoticeText}>
+              Custom gyms only count on your Personal & Friends leaderboards. Select a partnered gym in Goal & Gym to compete here.
+            </Text>
+          </View>
+        )}
+
         {/* Leaderboard List */}
         <FlatList
           data={entries}
@@ -890,6 +919,26 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 28,
+  },
+  customGymNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.warningMuted,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+  },
+  customGymNoticeText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.warning,
+    lineHeight: 15,
   },
   friendsHeaderContainer: {
     marginBottom: 12,

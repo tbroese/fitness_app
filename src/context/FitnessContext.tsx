@@ -158,8 +158,11 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           authUserId: profileSnap.authUserId ?? null,
           gymId: prefsSnap.gymLocation?.id || null,
           gymName: prefsSnap.gymLocation?.name || null,
+          isPartnered: Boolean(prefsSnap.gymLocation?.isPartnered),
           currentStreak: streakSnap.currentStreak,
           bestStreak: streakSnap.bestStreak,
+          partnerStreak: streakSnap.partnerStreak ?? 0,
+          bestPartnerStreak: streakSnap.bestPartnerStreak ?? 0,
           totalGymTimeMinutes,
           workoutsCount: workoutsSnap.length,
           weeklyGoal: prefsSnap.weeklyGoal,
@@ -439,6 +442,11 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           userId: existingRemote.id,
           currentStreak: Math.max(streakState.currentStreak, existingRemote.currentStreak),
           bestStreak: Math.max(streakState.bestStreak, existingRemote.bestStreak),
+          partnerStreak: Math.max(streakState.partnerStreak ?? 0, existingRemote.partnerStreak ?? 0),
+          bestPartnerStreak: Math.max(
+            streakState.bestPartnerStreak ?? 0,
+            existingRemote.bestPartnerStreak ?? 0
+          ),
         };
 
         await Promise.all([

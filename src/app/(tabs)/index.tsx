@@ -124,6 +124,7 @@ export default function DashboardScreen() {
         <StreakCard
           streakState={streakState}
           weeklyGoal={preferences.weeklyGoal}
+          isPartneredGym={preferences.gymLocation?.isPartnered}
         />
 
         {/* 2. Weekly Goal & Calendar Card */}
@@ -169,9 +170,14 @@ export default function DashboardScreen() {
         {/* Info Banner on streak mechanics */}
         <View style={styles.infoBox}>
           <Ionicons name="information-circle-outline" size={20} color={theme.primaryLight} />
-          <Text style={styles.infoText}>
-            Streaks increment with each gym visit. If there are fewer days left in the week than needed to hit your target of {preferences.weeklyGoal} workouts, your streak resets and starts again next week.
-          </Text>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.infoText}>
+              • <Text style={styles.infoBold}>Weekly Goal Cap:</Text> Streaks grow up to your weekly goal ({preferences.weeklyGoal}/week). Missing your goal resets your streak.
+            </Text>
+            <Text style={styles.infoText}>
+              • <Text style={styles.infoBold}>Partnered vs. Custom:</Text> Partnered gyms count on Global, Gym & Friends; custom gyms count toward Personal & Friends only.
+            </Text>
+          </View>
         </View>
       </ScrollView>
 
@@ -304,7 +310,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.textSecondary,
     lineHeight: 18,
-    flex: 1,
     fontWeight: '500',
+  },
+  infoBold: {
+    fontWeight: '700',
+    color: theme.textPrimary,
   },
 });

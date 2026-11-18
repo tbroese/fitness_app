@@ -8,6 +8,7 @@ import {
   formatDateToYYYYMMDD,
   getDayAbbreviation,
   getDaysRemainingInWeek,
+  getIsoWeekId,
 } from '../utils/dateUtils';
 
 interface WeeklyProgressCardProps {
@@ -27,18 +28,28 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   const daysRemaining = getDaysRemainingInWeek(new Date());
   const progressPercent = Math.min(100, Math.round((currentWeekWorkouts / weeklyGoal) * 100));
   const needed = Math.max(0, weeklyGoal - currentWeekWorkouts);
+  const currentWeekId = getIsoWeekId(new Date());
+  const currentWeekCustomCount = workouts.filter(
+    (w) => w.weekId === currentWeekId && !w.isPartnered
+  ).length;
+  const currentWeekPartnerCount = workouts.filter(
+    (w) => w.weekId === currentWeekId && Boolean(w.isPartnered)
+  ).length;
 
   // Generate 7 days for current week (Mon-Sun)
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     const dateStr = formatDateToYYYYMMDD(d);
-    const hasWorkout = workouts.some((w) => w.dateString === dateStr);
+    const dayWorkout = workouts.find((w) => w.dateString === dateStr);
+    const hasWorkout = Boolean(dayWorkout);
+    const isPartneredWorkout = Boolean(dayWorkout?.isPartnered);
     const isToday = dateStr === formatDateToYYYYMMDD(new Date());
 
     return {
       name: getDayAbbreviation(i),
       hasWorkout,
+      isPartneredWorkout,
       isToday,
       dayNum: d.getDate(),
     };
@@ -84,7 +95,10 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
             <View
               style={[
                 styles.dayCircle,
-                item.hasWorkout && styles.dayCircleCompleted,
+                item.hasWorkout &&
+                  (item.isPartneredWorkout
+                    ? styles.dayCircleCompleted
+                    : styles.dayCircleCompletedCustom),
                 item.isToday && !item.hasWorkout && styles.dayCircleToday,
               ]}
             >
@@ -104,6 +118,13 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
           </View>
         ))}
       </View>
+
+      {/* Mixed custom/partnered note when custom workouts were logged this week */}
+      {currentWeekCustomCount > 0 && (
+        <Text style={styles.customNoteText}>
+          {currentWeekPartnerCount}/{weeklyGoal} partnered gym visits • {currentWeekCustomCount} custom (Personal & Friends)
+        </Text>
+      )}
 
       {/* Days left footer */}
       <View style={styles.footerRow}>
@@ -215,6 +236,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.success,
     borderColor: theme.success,
   },
+  dayCircleCompletedCustom: {
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
+  },
   dayCircleToday: {
     borderColor: theme.primaryLight,
     borderWidth: 2,
@@ -241,5 +266,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.textTertiary,
     fontWeight: '500',
+  },
+  customNoteText: {
+    fontSize: 11,
+    color: theme.primaryLight,
+    fontWeight: '600',
+    marginTop: 10,
+    textAlign: 'center',
   },
 });

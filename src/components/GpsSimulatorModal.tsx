@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../context/FitnessContext';
+import { formatGymDuration } from '../utils/dateUtils';
 import { theme } from '../constants/theme';
 
 interface GpsSimulatorModalProps {
@@ -89,7 +90,7 @@ export const GpsSimulatorModal: React.FC<GpsSimulatorModalProps> = ({ visible, o
                 </View>
                 <View style={styles.stateItem}>
                   <Text style={styles.stateLabel}>Dwell Time</Text>
-                  <Text style={styles.stateValue}>{dwellState.minutesDwelling} mins</Text>
+                  <Text style={styles.stateValue}>{formatGymDuration(dwellState.minutesDwelling)}</Text>
                 </View>
                 <View style={styles.stateItem}>
                   <Text style={styles.stateLabel}>Done Today?</Text>

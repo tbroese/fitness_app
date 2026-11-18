@@ -16,6 +16,7 @@ interface WeeklyProgressCardProps {
   currentWeekWorkouts: number;
   workouts: WorkoutSession[];
   isReset?: boolean;
+  isPartneredGym?: boolean;
 }
 
 export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
@@ -23,6 +24,7 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   currentWeekWorkouts,
   workouts,
   isReset = false,
+  isPartneredGym = false,
 }) => {
   const { start } = getWeekStartAndEnd(new Date());
   const daysRemaining = getDaysRemainingInWeek(new Date());
@@ -35,6 +37,8 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   const currentWeekPartnerCount = workouts.filter(
     (w) => w.weekId === currentWeekId && Boolean(w.isPartnered)
   ).length;
+  const partnerPercent = Math.min(100, (currentWeekPartnerCount / weeklyGoal) * 100);
+  const customPercent = Math.min(100 - partnerPercent, (currentWeekCustomCount / weeklyGoal) * 100);
 
   // Generate 7 days for current week (Mon-Sun)
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -76,13 +80,44 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
 
       {/* Progress Bar */}
       <View style={styles.progressBarBackground}>
-        <View
-          style={[
-            styles.progressBarFill,
-            { width: `${progressPercent}%` },
-            isReset && { backgroundColor: theme.danger },
-          ]}
-        />
+        {isReset ? (
+          <View
+            style={[
+              styles.progressBarFill,
+              {
+                width: `${progressPercent}%`,
+                backgroundColor: theme.danger,
+              },
+            ]}
+          />
+        ) : (
+          <>
+            {partnerPercent > 0 && (
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: `${partnerPercent}%`,
+                    backgroundColor: theme.success,
+                    borderRadius: 0,
+                  },
+                ]}
+              />
+            )}
+            {customPercent > 0 && (
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: `${customPercent}%`,
+                    backgroundColor: theme.primary,
+                    borderRadius: 0,
+                  },
+                ]}
+              />
+            )}
+          </>
+        )}
       </View>
 
       {/* Week Day Pills */}
@@ -191,6 +226,7 @@ const styles = StyleSheet.create({
     color: theme.primaryLight,
   },
   progressBarBackground: {
+    flexDirection: 'row',
     height: 10,
     backgroundColor: theme.cardBackgroundSubtle,
     borderRadius: 5,

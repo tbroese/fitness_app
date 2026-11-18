@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GymLocation, DwellSessionState, FIXED_DWELL_MINUTES } from '../types/fitness';
+import { formatGymDuration } from '../utils/dateUtils';
 import { theme } from '../constants/theme';
 
 interface GymStatusCardProps {
@@ -144,7 +145,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
           <View style={{ flex: 1 }}>
             <View style={styles.completedHeaderRow}>
               <Text style={styles.completedTitle}>Workout Verified!</Text>
-              <Text style={styles.liveSessionBadge}>{dwellState.minutesDwelling} mins</Text>
+              <Text style={styles.liveSessionBadge}>{formatGymDuration(dwellState.minutesDwelling)}</Text>
             </View>
             <Text style={styles.completedSub}>
               15-min goal reached. Continuing to track your gym time while you stay!
@@ -157,7 +158,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
           <View style={{ flex: 1 }}>
             <Text style={styles.completedTitle}>Workout Completed Today!</Text>
             <Text style={styles.completedSub}>
-              Total time in gym today: {Math.max(dwellRequired, dwellState.minutesDwelling)} mins. Your streak has been updated!
+              Total time in gym today: {formatGymDuration(Math.max(dwellRequired, dwellState.minutesDwelling))}. Your streak has been updated!
             </Text>
           </View>
         </View>

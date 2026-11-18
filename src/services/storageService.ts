@@ -270,10 +270,18 @@ export const storageService = {
     }
 
     const todayWorkout = workouts.find((w) => w.dateString === today);
-    const completedToday = Boolean(todayWorkout);
+    const isPartneredGym = Boolean(prefs.gymLocation?.isPartnered);
+    const isUpgradingToPartnered = Boolean(
+      todayWorkout && !todayWorkout.isPartnered && isPartneredGym
+    );
+    const completedToday = Boolean(todayWorkout) && !isUpgradingToPartnered;
     const resolvedGymName = gymName || prefs.gymLocation?.name || 'Local Gym';
 
-    if (existingSession.isDwelling && existingSession.enteredAt) {
+    if (
+      existingSession.isDwelling &&
+      existingSession.enteredAt &&
+      (!isUpgradingToPartnered || existingSession.gymName === resolvedGymName)
+    ) {
       // Already dwelling — keep original enteredAt timestamp!
       const updated: DwellSessionState = {
         ...existingSession,
@@ -285,9 +293,10 @@ export const storageService = {
       return updated;
     }
 
-    // If re-entering the gym later on the same day after already completing a workout,
-    // backdate enteredAt by prior duration so cumulative gym time for today continues seamlessly!
-    const priorMinutesToday = todayWorkout ? todayWorkout.durationMinutes : 0;
+    // If re-entering the same gym type later on the same day after already completing a workout,
+    // backdate enteredAt by prior duration so cumulative gym time for today continues seamlessly.
+    // When upgrading from a custom gym to a partnered gym on the same day, start a fresh 15m dwell.
+    const priorMinutesToday = isUpgradingToPartnered ? 0 : todayWorkout ? todayWorkout.durationMinutes : 0;
     const effectiveEnteredAt = new Date(Date.now() - priorMinutesToday * 60 * 1000).toISOString();
 
     const newSession: DwellSessionState = {
@@ -322,7 +331,10 @@ export const storageService = {
       this.getUserProfile(),
     ]);
 
-    const alreadyDoneToday = workouts.some((w) => w.dateString === today);
+    const todayWorkout = workouts.find((w) => w.dateString === today);
+    const alreadyDoneToday = Boolean(todayWorkout);
+    const isPartnered = Boolean(prefs.gymLocation?.isPartnered);
+    const canUpgradeToday = Boolean(todayWorkout && !todayWorkout.isPartnered && isPartnered);
 
     // If not currently inside the gym perimeter
     if (!session.isDwelling || !session.enteredAt) {
@@ -350,14 +362,38 @@ export const storageService = {
       };
     }
 
+    // Guard: if upgrading from a custom gym workout to a partnered gym, do not credit a stale
+    // dwell session that was started at a different (custom) gym.
+    if (
+      canUpgradeToday &&
+      session.gymName &&
+      prefs.gymLocation?.name &&
+      session.gymName !== prefs.gymLocation.name
+    ) {
+      const resetSession: DwellSessionState = {
+        isDwelling: false,
+        enteredAt: undefined,
+        minutesDwelling: 0,
+        gymName: prefs.gymLocation.name,
+        completedToday: false,
+        dateString: today,
+      };
+      await this.saveDwellSession(resetSession);
+      return {
+        dwellSession: resetSession,
+        streakState: streak,
+        workouts,
+        completedNow: false,
+      };
+    }
+
     // User is actively dwelling inside the gym perimeter — compute elapsed time
     const elapsedMs = Date.now() - new Date(session.enteredAt).getTime();
     const elapsedMins = Math.max(0, Math.floor(elapsedMs / (1000 * 60)));
 
-    // Case 1: Reached 15-minute threshold for the first time today -> Log workout & KEEP dwelling active!
-    if (elapsedMins >= FIXED_DWELL_MINUTES && !alreadyDoneToday) {
+    // Case 1: Reached 15-minute threshold for the first time today, or upgrading custom -> partnered today
+    if (elapsedMins >= FIXED_DWELL_MINUTES && (!alreadyDoneToday || canUpgradeToday)) {
       const gymName = session.gymName || prefs.gymLocation?.name || 'Local Gym';
-      const isPartnered = Boolean(prefs.gymLocation?.isPartnered);
       const result = recordCompletedWorkout(
         streak,
         prefs,
@@ -392,9 +428,9 @@ export const storageService = {
       };
     }
 
-    // Case 2: Already completed today's 15-min check-in, and STILL at the gym (> 15 mins)
+    // Case 2: Already completed today's 15-min check-in (and not upgrading to partnered), still at the gym
     // Continue incrementing minutesDwelling and updating today's workout durationMinutes!
-    if (alreadyDoneToday) {
+    if (alreadyDoneToday && !canUpgradeToday) {
       let workoutsUpdated = false;
       const updatedWorkouts = workouts.map((w) => {
         if (w.dateString === today && elapsedMins > w.durationMinutes) {

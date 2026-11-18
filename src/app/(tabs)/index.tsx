@@ -133,6 +133,7 @@ export default function DashboardScreen() {
           currentWeekWorkouts={streakState.currentWeekWorkouts}
           workouts={workouts}
           isReset={isReset}
+          isPartneredGym={preferences.gymLocation?.isPartnered}
         />
 
         {/* Scheduled Goal Banner (if queued for Monday) */}

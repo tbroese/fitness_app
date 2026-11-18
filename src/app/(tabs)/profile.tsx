@@ -22,6 +22,7 @@ import {
   convertToKg,
   formatWeightWithUnit,
 } from '../../utils/weightUtils';
+import { formatGymDuration } from '../../utils/dateUtils';
 import { theme } from '../../constants/theme';
 
 type LiftKey = 'squat' | 'bench' | 'deadlift';
@@ -238,7 +239,7 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Workouts</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{totalMinutes}m</Text>
+            <Text style={styles.statValue}>{formatGymDuration(totalMinutes)}</Text>
             <Text style={styles.statLabel}>Gym Time</Text>
           </View>
         </View>

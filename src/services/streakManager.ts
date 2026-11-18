@@ -148,8 +148,12 @@ export function recordCompletedWorkout(
   const isoNow = workoutDate.toISOString();
 
   // Check if a workout has already been recorded today
-  const alreadyDoneToday = existingWorkouts.some((w) => w.dateString === dateString);
-  if (alreadyDoneToday) {
+  const existingTodayWorkout = existingWorkouts.find((w) => w.dateString === dateString);
+  const isSameDayPartnerUpgrade = Boolean(
+    existingTodayWorkout && !existingTodayWorkout.isPartnered && isPartnered
+  );
+
+  if (existingTodayWorkout && !isSameDayPartnerUpgrade) {
     return {
       success: false,
       message: 'Workout already completed for today! Max 1 check-in per day.',
@@ -158,31 +162,48 @@ export function recordCompletedWorkout(
     };
   }
 
-  // Create new workout session with cloud-ready metadata
-  const newWorkout: WorkoutSession = {
-    id: `workout_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    userId: userId || currentState.userId,
-    timestamp: isoNow,
-    dateString,
-    durationMinutes,
-    verifiedByGps: true,
-    isPartnered,
-    gymName,
-    weekId,
-    updatedAt: isoNow,
-    synced: false,
-  };
+  let newWorkout: WorkoutSession;
+  let updatedWorkouts: WorkoutSession[];
+  if (isSameDayPartnerUpgrade && existingTodayWorkout) {
+    newWorkout = {
+      ...existingTodayWorkout,
+      isPartnered: true,
+      gymName,
+      durationMinutes: Math.max(existingTodayWorkout.durationMinutes, durationMinutes),
+      updatedAt: isoNow,
+      synced: false,
+    };
+    updatedWorkouts = existingWorkouts.map((w) =>
+      w.dateString === dateString ? newWorkout : w
+    );
+  } else {
+    // Create new workout session with cloud-ready metadata
+    newWorkout = {
+      id: `workout_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      userId: userId || currentState.userId,
+      timestamp: isoNow,
+      dateString,
+      durationMinutes,
+      verifiedByGps: true,
+      isPartnered,
+      gymName,
+      weekId,
+      updatedAt: isoNow,
+      synced: false,
+    };
+    updatedWorkouts = [newWorkout, ...existingWorkouts];
+  }
 
-  const updatedWorkouts = [newWorkout, ...existingWorkouts];
   const currentWeekWorkouts = updatedWorkouts.filter((w) => w.weekId === weekId).length;
   const currentPartnerWeekWorkouts = updatedWorkouts.filter(
     (w) => w.weekId === weekId && Boolean(w.isPartnered)
   ).length;
 
-  // Cap streak increments at the user's weekly goal so low-goal farming isn't possible
+  // Cap streak increments at the user's weekly goal so low-goal farming isn't possible.
+  // Same-day partner upgrades do not double-count Personal Streak.
   let newStreak = currentState.currentStreak;
   const withinWeeklyGoalCap = currentWeekWorkouts <= preferences.weeklyGoal;
-  if (currentState.streakStatus !== 'reset' && withinWeeklyGoalCap) {
+  if (!isSameDayPartnerUpgrade && currentState.streakStatus !== 'reset' && withinWeeklyGoalCap) {
     newStreak = currentState.currentStreak + 1;
   }
 
@@ -224,6 +245,8 @@ export function recordCompletedWorkout(
     message:
       evaluated.streakStatus === 'reset'
         ? `Workout logged! However, ${STREAK_LOST_MESSAGE}`
+        : isSameDayPartnerUpgrade
+        ? `Upgraded today's workout at ${gymName} to Verified Gym! Partner Streak is now ${newPartnerStreak} 🔥`
         : !withinWeeklyGoalCap
         ? `Workout logged at ${gymName}! Weekly streak cap (${preferences.weeklyGoal}/wk) already reached.`
         : `Workout verified at ${gymName}! Streak is now ${newStreak} 🔥`,

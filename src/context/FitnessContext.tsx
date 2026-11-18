@@ -763,9 +763,39 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Fixed at 300m
       dwellMinutesRequired: FIXED_DWELL_MINUTES, // Fixed at 15m
     };
+
+    const isChangingGym =
+      preferences.gymLocation?.name !== lockedLocation.name ||
+      Boolean(preferences.gymLocation?.isPartnered) !== Boolean(lockedLocation.isPartnered);
+
+    if (isChangingGym && dwellState.isDwelling) {
+      // Finalize any active dwell at the previous gym before switching preferences
+      await storageService.handleBackgroundGeofenceExit();
+    }
+
     const updatedPrefs: UserPreferences = { ...preferences, gymLocation: lockedLocation };
+    preferencesRef.current = updatedPrefs;
     setPreferences(updatedPrefs);
     await storageService.savePreferences(updatedPrefs);
+
+    if (isChangingGym) {
+      const today = formatDateToYYYYMMDD(new Date());
+      const todayWorkout = workouts.find((w) => w.dateString === today);
+      const isUpgradingToPartnered = Boolean(
+        todayWorkout && !todayWorkout.isPartnered && lockedLocation.isPartnered
+      );
+      const resetSession: DwellSessionState = {
+        isDwelling: false,
+        enteredAt: undefined,
+        minutesDwelling: 0,
+        gymName: lockedLocation.name,
+        completedToday: Boolean(todayWorkout) && !isUpgradingToPartnered,
+        dateString: today,
+      };
+      await storageService.saveDwellSession(resetSession);
+      setDwellState(resetSession);
+    }
+
     refreshLocation();
     await syncSnapshotToCloud(userProfile, updatedPrefs, streakState, workouts);
   };
@@ -868,7 +898,13 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const simulateDwellProgress = async (addMinutes: number) => {
-    const newDwell = dwellState.minutesDwelling + addMinutes;
+    const today = formatDateToYYYYMMDD(new Date());
+    const todayWorkout = workouts.find((w) => w.dateString === today);
+    const isUpgradingToPartnered = Boolean(
+      todayWorkout && !todayWorkout.isPartnered && preferences.gymLocation?.isPartnered
+    );
+    const baseDwell = !dwellState.isDwelling && isUpgradingToPartnered ? 0 : dwellState.minutesDwelling;
+    const newDwell = baseDwell + addMinutes;
     const simulatedEnteredAt = new Date(Date.now() - newDwell * 60 * 1000).toISOString();
 
     const updatedSession: DwellSessionState = {
@@ -876,8 +912,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       isDwelling: true,
       enteredAt: simulatedEnteredAt,
       minutesDwelling: newDwell,
-      gymName: dwellState.gymName || preferences.gymLocation?.name || 'Local Gym',
-      dateString: formatDateToYYYYMMDD(new Date()),
+      gymName: preferences.gymLocation?.name || dwellState.gymName || 'Local Gym',
+      dateString: today,
     };
     await storageService.saveDwellSession(updatedSession);
 

@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
 import { WorkoutContributionGraph } from '../../components/WorkoutContributionGraph';
 import { WorkoutSession } from '../../types/fitness';
+import { formatGymDuration } from '../../utils/dateUtils';
 import { theme } from '../../constants/theme';
 
 export default function HistoryScreen() {
@@ -49,7 +50,7 @@ export default function HistoryScreen() {
           <View style={styles.metaRow}>
             <View style={styles.metaPill}>
               <Ionicons name="time-outline" size={12} color={theme.textTertiary} />
-              <Text style={styles.metaText}>{item.durationMinutes} mins</Text>
+              <Text style={styles.metaText}>{formatGymDuration(item.durationMinutes)}</Text>
             </View>
             <View style={styles.metaPill}>
               <Ionicons name="calendar-outline" size={12} color={theme.textTertiary} />

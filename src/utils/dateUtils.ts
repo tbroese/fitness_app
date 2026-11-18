@@ -68,3 +68,16 @@ export function getDayAbbreviation(dayIndex: number): string {
   const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   return names[dayIndex] || '';
 }
+
+/**
+ * Formats a duration in minutes into hours and minutes (e.g. "45 mins", "1h", "1h 15m").
+ */
+export function formatGymDuration(totalMinutes: number): string {
+  const safeMinutes = Math.max(0, Math.floor(totalMinutes));
+  if (safeMinutes < 60) {
+    return `${safeMinutes} ${safeMinutes === 1 ? 'min' : 'mins'}`;
+  }
+  const hrs = Math.floor(safeMinutes / 60);
+  const mins = safeMinutes % 60;
+  return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+}

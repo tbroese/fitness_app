@@ -5,6 +5,12 @@
 export const ENABLE_DEBUG_SIMULATOR = false;
 
 /**
+ * Public Privacy Policy URL (hosted via GitHub Pages `/docs` on `main`).
+ */
+export const PRIVACY_POLICY_URL =
+  'https://tbroese.github.io/fitness_app/privacy-policy.html';
+
+/**
  * Cloud Database Configuration (Supabase Free Tier by default)
  * Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in `.env.local`
  * or in your EAS environment variables.

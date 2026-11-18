@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -23,6 +24,7 @@ import {
   formatWeightWithUnit,
 } from '../../utils/weightUtils';
 import { formatGymDuration } from '../../utils/dateUtils';
+import { PRIVACY_POLICY_URL } from '../../constants/config';
 import { theme } from '../../constants/theme';
 
 type LiftKey = 'squat' | 'bench' | 'deadlift';
@@ -489,6 +491,17 @@ export default function ProfileScreen() {
 
             <View style={styles.divider} />
 
+            {/* Privacy Policy Link */}
+            <TouchableOpacity
+              style={styles.privacyBtn}
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="shield-checkmark-outline" size={18} color={theme.textPrimary} />
+              <Text style={styles.privacyBtnText}>Privacy Policy</Text>
+              <Ionicons name="open-outline" size={15} color={theme.textTertiary} />
+            </TouchableOpacity>
+
             {/* Delete Account Button in Red Text */}
             <TouchableOpacity
               style={styles.deleteAccountBtn}
@@ -806,6 +819,23 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: theme.cardBorder,
     marginVertical: 18,
+  },
+  privacyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    marginBottom: 10,
+  },
+  privacyBtnText: {
+    color: theme.textPrimary,
+    fontWeight: '600',
+    fontSize: 14,
   },
   deleteAccountBtn: {
     flexDirection: 'row',

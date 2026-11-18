@@ -89,9 +89,19 @@ export interface OAuthUserIdentity {
   provider: 'google' | 'apple';
 }
 
+export interface AuthSession {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number; // epoch ms
+  authUserId?: string;
+}
+
 export interface CloudDatabaseProvider {
   readonly providerName: string;
   isConfigured(): boolean;
+  setAuthSession(session: AuthSession | null): void;
+  signInAnonymously(): Promise<AuthSession | null>;
+  refreshAuthSession(refreshToken: string): Promise<AuthSession | null>;
   getOAuthAuthorizeUrl(provider: 'google' | 'apple', redirectUri: string): string | null;
   getUserFromAccessToken(
     accessToken: string,

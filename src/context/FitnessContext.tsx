@@ -45,6 +45,7 @@ export interface SignInAccountInput {
   fullName: string;
   email?: string;
   authProvider: AuthProviderType;
+  authUserId?: string | null;
 }
 
 interface FitnessContextType {
@@ -278,12 +279,40 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [savedProfile, savedPrefs, savedWorkouts, savedStreak] = await Promise.all([
-        storageService.getUserProfile(),
-        storageService.getPreferences(),
-        storageService.getWorkouts(),
-        storageService.getStreakState(),
-      ]);
+      const [savedProfile, savedPrefs, savedWorkouts, savedStreak, savedAuthSession] =
+        await Promise.all([
+          storageService.getUserProfile(),
+          storageService.getPreferences(),
+          storageService.getWorkouts(),
+          storageService.getStreakState(),
+          storageService.getAuthSession(),
+        ]);
+
+      let activeProfile = savedProfile;
+      if (savedAuthSession) {
+        cloudDatabase.setAuthSession(savedAuthSession);
+        if (
+          savedAuthSession.expiresAt &&
+          savedAuthSession.refreshToken &&
+          Date.now() > savedAuthSession.expiresAt - 60_000
+        ) {
+          const refreshed = await cloudDatabase.refreshAuthSession(savedAuthSession.refreshToken);
+          if (refreshed) {
+            await storageService.saveAuthSession(refreshed);
+          }
+        }
+      } else if (cloudDatabase.isConfigured() && savedProfile.authProvider !== 'google') {
+        const anonSession = await cloudDatabase.signInAnonymously();
+        if (anonSession) {
+          await storageService.saveAuthSession(anonSession);
+          if (!activeProfile.authUserId && anonSession.authUserId) {
+            activeProfile = await storageService.saveUserProfile({
+              ...activeProfile,
+              authUserId: anonSession.authUserId,
+            });
+          }
+        }
+      }
 
       // Ensure defaults & locked values
       savedPrefs.dwellDurationMinutes = FIXED_DWELL_MINUTES;
@@ -320,7 +349,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       // Evaluate any persisted background dwell session
       const dwellEval = await storageService.evaluatePersistedDwellSession();
 
-      setUserProfile(savedProfile);
+      setUserProfile(activeProfile);
       setPreferences(savedPrefs);
       setWorkouts(dwellEval.workouts);
       setStreakState(dwellEval.streakState);
@@ -334,12 +363,12 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       // Push latest stats to cloud database & load friendships in background
       syncSnapshotToCloud(
-        savedProfile,
+        activeProfile,
         savedPrefs,
         dwellEval.streakState,
         dwellEval.workouts
       );
-      cloudDatabase.fetchFriendships(savedProfile.id).then((overview) => {
+      cloudDatabase.fetchFriendships(activeProfile.id).then((overview) => {
         setFriendships(overview);
       });
     } catch (e) {
@@ -437,6 +466,21 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   ): Promise<{ restoredExisting: boolean }> => {
     const cleanEmail = input.email?.trim().toLowerCase() || '';
     const trimmedName = input.fullName.trim();
+    let resolvedAuthUserId = input.authUserId ?? userProfile.authUserId ?? null;
+
+    if (input.authProvider === 'device' && !resolvedAuthUserId && cloudDatabase.isConfigured()) {
+      const existingSession = await storageService.getAuthSession();
+      if (existingSession?.authUserId) {
+        cloudDatabase.setAuthSession(existingSession);
+        resolvedAuthUserId = existingSession.authUserId;
+      } else {
+        const anonSession = await cloudDatabase.signInAnonymously();
+        if (anonSession) {
+          await storageService.saveAuthSession(anonSession);
+          resolvedAuthUserId = anonSession.authUserId || null;
+        }
+      }
+    }
 
     if (cleanEmail && cloudDatabase.isConfigured()) {
       const existingRemote = await cloudDatabase.findExistingUserByEmail(cleanEmail);
@@ -448,6 +492,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           userTag: existingRemote.userTag,
           email: cleanEmail,
           authProvider: input.authProvider,
+          authUserId: resolvedAuthUserId,
           gender: existingRemote.gender ?? userProfile.gender ?? null,
           age: existingRemote.age ?? userProfile.age ?? null,
           squatPrKg: existingRemote.squatPrKg ?? userProfile.squatPrKg ?? 0,
@@ -491,6 +536,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       userTag: userProfile.userTag || generateUserTag(userProfile.id),
       email: cleanEmail || null,
       authProvider: input.authProvider,
+      authUserId: resolvedAuthUserId,
       hasCompletedOnboarding: Boolean(trimmedName),
       updatedAt: new Date().toISOString(),
     };
@@ -505,6 +551,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const signOutAccount = async () => {
+    cloudDatabase.setAuthSession(null);
+    await storageService.clearAuthSession();
     const signedOutProfile: UserProfile = {
       ...userProfile,
       hasCompletedOnboarding: false,
@@ -532,16 +580,31 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       const accessToken = decodeURIComponent(tokenMatch[1]);
+      const refreshMatch = url.match(/[?#&]refresh_token=([^&]+)/);
+      const expiresMatch = url.match(/[?#&]expires_in=([^&]+)/);
+      const refreshToken = refreshMatch?.[1] ? decodeURIComponent(refreshMatch[1]) : undefined;
+      const expiresInSec = expiresMatch?.[1] ? Number(decodeURIComponent(expiresMatch[1])) : undefined;
+
       const identity = await cloudDatabase.getUserFromAccessToken(accessToken, 'google');
       if (!identity) {
         Alert.alert('Sign-In Error', 'Could not retrieve your Google/Apple profile from token.');
         return false;
       }
 
+      const authSession = {
+        accessToken,
+        refreshToken,
+        expiresAt: expiresInSec ? Date.now() + expiresInSec * 1000 : undefined,
+        authUserId: identity.authUserId,
+      };
+      cloudDatabase.setAuthSession(authSession);
+      await storageService.saveAuthSession(authSession);
+
       await signInWithAccount({
         fullName: identity.fullName,
         email: identity.email,
         authProvider: identity.provider,
+        authUserId: identity.authUserId,
       });
       return true;
     },

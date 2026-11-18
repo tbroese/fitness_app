@@ -3,6 +3,7 @@ import * as Linking from 'expo-linking';
 import { SUPABASE_CONFIG } from '../../constants/config';
 import { AuthProviderType, UserGender } from '../../types/fitness';
 import {
+  AuthSession,
   CloudDatabaseProvider,
   FetchLeaderboardParams,
   FriendRequestWithUser,
@@ -117,9 +118,80 @@ function mapRowToLeaderboardUser(row: SupabaseLeaderboardRow): RemoteLeaderboard
  */
 export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
   readonly providerName = 'supabase';
+  private authSession: AuthSession | null = null;
 
   isConfigured(): boolean {
     return Boolean(SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
+  }
+
+  setAuthSession(session: AuthSession | null): void {
+    this.authSession = session;
+  }
+
+  async signInAnonymously(): Promise<AuthSession | null> {
+    if (!this.isConfigured()) return null;
+    try {
+      const res = await fetch(`${SUPABASE_CONFIG.url}/auth/v1/signup`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_CONFIG.anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.access_token) return null;
+      const session: AuthSession = {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: data.expires_in ? Date.now() + Number(data.expires_in) * 1000 : undefined,
+        authUserId: data.user?.id,
+      };
+      this.setAuthSession(session);
+      return session;
+    } catch (e) {
+      console.warn('[Supabase] Anonymous sign-in failed:', e);
+      return null;
+    }
+  }
+
+  async refreshAuthSession(refreshToken: string): Promise<AuthSession | null> {
+    if (!this.isConfigured() || !refreshToken) return null;
+    try {
+      const res = await fetch(`${SUPABASE_CONFIG.url}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_CONFIG.anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.access_token) return null;
+      const session: AuthSession = {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token || refreshToken,
+        expiresAt: data.expires_in ? Date.now() + Number(data.expires_in) * 1000 : undefined,
+        authUserId: data.user?.id || this.authSession?.authUserId,
+      };
+      this.setAuthSession(session);
+      return session;
+    } catch (e) {
+      console.warn('[Supabase] Failed to refresh auth session:', e);
+      return null;
+    }
+  }
+
+  private async ensureFreshSession(): Promise<void> {
+    if (
+      this.authSession?.expiresAt &&
+      this.authSession.refreshToken &&
+      Date.now() > this.authSession.expiresAt - 60_000
+    ) {
+      await this.refreshAuthSession(this.authSession.refreshToken);
+    }
   }
 
   private getHeaders(extra?: Record<string, string>): Record<string, string> {
@@ -128,7 +200,9 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
       'Content-Type': 'application/json',
       ...extra,
     };
-    if (SUPABASE_CONFIG.anonKey.startsWith('eyJ')) {
+    if (this.authSession?.accessToken) {
+      headers.Authorization = `Bearer ${this.authSession.accessToken}`;
+    } else if (SUPABASE_CONFIG.anonKey.startsWith('eyJ')) {
       headers.Authorization = `Bearer ${SUPABASE_CONFIG.anonKey}`;
     }
     return headers;
@@ -217,6 +291,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
     }
 
     try {
+      await this.ensureFreshSession();
       const nowIso = new Date().toISOString();
       const userPayload: SupabaseLeaderboardRow = {
         id: data.userId,
@@ -224,7 +299,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
         user_tag: data.userTag || '0000',
         email: data.email ? data.email.trim().toLowerCase() : null,
         auth_provider: data.authProvider || 'device',
-        auth_user_id: data.authUserId || null,
+        auth_user_id: data.authUserId || this.authSession?.authUserId || null,
         gender: data.gender ?? null,
         age: data.age ?? null,
         gym_id: data.gymId || null,
@@ -616,6 +691,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
     if (!this.isConfigured() || !userId) return false;
 
     try {
+      await this.ensureFreshSession();
       // Remove any friend requests involving this user
       await fetch(
         `${SUPABASE_CONFIG.url}/rest/v1/friend_requests?or=(requester_id.eq.${encodeURIComponent(

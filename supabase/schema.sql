@@ -95,13 +95,149 @@ CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver_status
   ON public.friend_requests (receiver_id, status);
 
 -- ============================================================================
--- Supabase Row Level Security (RLS) & Table Grants for Early Development
+-- Supabase Row Level Security (RLS) & Table Grants (Production)
 -- ============================================================================
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.leaderboard_users TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_workouts TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.friend_requests TO anon, authenticated;
+GRANT SELECT ON public.leaderboard_users TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.leaderboard_users TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_workouts TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.friend_requests TO authenticated;
 
 ALTER TABLE public.leaderboard_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_workouts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.friend_requests ENABLE ROW LEVEL SECURITY;
+
+-- leaderboard_users: public leaderboard reads; owners can insert/update/delete only their own row
+DROP POLICY IF EXISTS "Allow public read leaderboard_users" ON public.leaderboard_users;
+DROP POLICY IF EXISTS "Allow public upsert leaderboard_users" ON public.leaderboard_users;
+DROP POLICY IF EXISTS "Allow public update leaderboard_users" ON public.leaderboard_users;
+DROP POLICY IF EXISTS "Allow public delete leaderboard_users" ON public.leaderboard_users;
+
+CREATE POLICY "Leaderboard is readable by app users"
+  ON public.leaderboard_users FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+CREATE POLICY "Users can insert own leaderboard profile"
+  ON public.leaderboard_users FOR INSERT
+  TO authenticated
+  WITH CHECK ((select auth.uid())::text = auth_user_id);
+
+CREATE POLICY "Users can update own leaderboard profile"
+  ON public.leaderboard_users FOR UPDATE
+  TO authenticated
+  USING ((select auth.uid())::text = auth_user_id)
+  WITH CHECK ((select auth.uid())::text = auth_user_id);
+
+CREATE POLICY "Users can delete own leaderboard profile"
+  ON public.leaderboard_users FOR DELETE
+  TO authenticated
+  USING ((select auth.uid())::text = auth_user_id);
+
+-- user_workouts: only the owning user can read/insert/update/delete their workouts
+DROP POLICY IF EXISTS "Allow public read user_workouts" ON public.user_workouts;
+DROP POLICY IF EXISTS "Allow public insert user_workouts" ON public.user_workouts;
+DROP POLICY IF EXISTS "Allow public update user_workouts" ON public.user_workouts;
+DROP POLICY IF EXISTS "Allow public delete user_workouts" ON public.user_workouts;
+
+CREATE POLICY "Users can read own workouts"
+  ON public.user_workouts FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE u.id = user_id AND u.auth_user_id = (select auth.uid())::text
+    )
+  );
+
+CREATE POLICY "Users can insert own workouts"
+  ON public.user_workouts FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE u.id = user_id AND u.auth_user_id = (select auth.uid())::text
+    )
+  );
+
+CREATE POLICY "Users can update own workouts"
+  ON public.user_workouts FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE u.id = user_id AND u.auth_user_id = (select auth.uid())::text
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE u.id = user_id AND u.auth_user_id = (select auth.uid())::text
+    )
+  );
+
+CREATE POLICY "Users can delete own workouts"
+  ON public.user_workouts FOR DELETE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE u.id = user_id AND u.auth_user_id = (select auth.uid())::text
+    )
+  );
+
+-- friend_requests: only requester or receiver can view/modify their friend requests
+DROP POLICY IF EXISTS "Allow public read friend_requests" ON public.friend_requests;
+DROP POLICY IF EXISTS "Allow public insert friend_requests" ON public.friend_requests;
+DROP POLICY IF EXISTS "Allow public update friend_requests" ON public.friend_requests;
+DROP POLICY IF EXISTS "Allow public delete friend_requests" ON public.friend_requests;
+
+CREATE POLICY "Users can read own friend requests"
+  ON public.friend_requests FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE (u.id = requester_id OR u.id = receiver_id)
+        AND u.auth_user_id = (select auth.uid())::text
+    )
+  );
+
+CREATE POLICY "Users can send friend requests as themselves"
+  ON public.friend_requests FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE u.id = requester_id AND u.auth_user_id = (select auth.uid())::text
+    )
+  );
+
+CREATE POLICY "Users can update own friend requests"
+  ON public.friend_requests FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE (u.id = requester_id OR u.id = receiver_id)
+        AND u.auth_user_id = (select auth.uid())::text
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE (u.id = requester_id OR u.id = receiver_id)
+        AND u.auth_user_id = (select auth.uid())::text
+    )
+  );
+
+CREATE POLICY "Users can delete own friend requests"
+  ON public.friend_requests FOR DELETE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.leaderboard_users u
+      WHERE (u.id = requester_id OR u.id = receiver_id)
+        AND u.auth_user_id = (select auth.uid())::text
+    )
+  );

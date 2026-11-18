@@ -8,8 +8,11 @@ export interface RemoteLeaderboardUser {
   authProvider?: AuthProviderType;
   gymId: string | null;
   gymName: string;
+  isPartnered: boolean;
   currentStreak: number;
   bestStreak: number;
+  partnerStreak: number;
+  bestPartnerStreak: number;
   totalGymTimeMinutes: number;
   workoutsCount: number;
   weeklyGoal: number;
@@ -28,8 +31,11 @@ export interface UserCloudSyncData {
   authUserId?: string | null;
   gymId: string | null;
   gymName: string | null;
+  isPartnered?: boolean;
   currentStreak: number;
   bestStreak: number;
+  partnerStreak?: number;
+  bestPartnerStreak?: number;
   totalGymTimeMinutes: number;
   workoutsCount: number;
   weeklyGoal: number;

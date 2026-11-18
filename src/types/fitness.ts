@@ -39,6 +39,7 @@ export interface WorkoutSession {
   dateString: string; // YYYY-MM-DD
   durationMinutes: number;
   verifiedByGps: boolean;
+  isPartnered?: boolean;
   gymName: string;
   weekId: string; // e.g. "2026-W46"
   updatedAt?: string; // ISO string for sync resolution
@@ -56,8 +57,10 @@ export interface UserPreferences {
 
 export interface StreakState {
   userId?: string;
-  currentStreak: number; // Total consecutive gym visits/workouts
+  currentStreak: number; // Total consecutive gym visits/workouts (personal)
   bestStreak: number;
+  partnerStreak?: number; // Streak earned strictly at verified partnered gyms
+  bestPartnerStreak?: number;
   currentWeekWorkouts: number; // Completed in the current ISO week
   lastCompletedDate?: string; // YYYY-MM-DD to enforce max 1 per day
   lastEvaluatedWeekId?: string; // e.g. "2026-W46"

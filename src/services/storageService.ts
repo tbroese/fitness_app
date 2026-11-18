@@ -66,6 +66,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 export const DEFAULT_STREAK_STATE: StreakState = {
   currentStreak: 0,
   bestStreak: 0,
+  partnerStreak: 0,
+  bestPartnerStreak: 0,
   currentWeekWorkouts: 0,
   streakStatus: 'active',
   lastEvaluatedWeekId: getIsoWeekId(new Date()),
@@ -345,6 +347,7 @@ export const storageService = {
     // Case 1: Reached 15-minute threshold for the first time today -> Log workout & KEEP dwelling active!
     if (elapsedMins >= FIXED_DWELL_MINUTES && !alreadyDoneToday) {
       const gymName = session.gymName || prefs.gymLocation?.name || 'Local Gym';
+      const isPartnered = Boolean(prefs.gymLocation?.isPartnered);
       const result = recordCompletedWorkout(
         streak,
         prefs,
@@ -352,7 +355,8 @@ export const storageService = {
         gymName,
         new Date(),
         elapsedMins,
-        profile.id
+        profile.id,
+        isPartnered
       );
 
       // Keep isDwelling: true and enteredAt intact so timer continues past 15 mins!

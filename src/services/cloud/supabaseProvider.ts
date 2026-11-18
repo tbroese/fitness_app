@@ -55,8 +55,11 @@ interface SupabaseLeaderboardRow {
   auth_user_id?: string | null;
   gym_id: string | null;
   gym_name: string | null;
+  is_partnered?: boolean;
   current_streak: number;
   best_streak: number;
+  partner_streak?: number;
+  best_partner_streak?: number;
   total_gym_time_minutes: number;
   workouts_count: number;
   weekly_goal: number;
@@ -84,8 +87,11 @@ function mapRowToLeaderboardUser(row: SupabaseLeaderboardRow): RemoteLeaderboard
     authProvider: (row.auth_provider as AuthProviderType) || 'device',
     gymId: row.gym_id,
     gymName: row.gym_name || 'No Gym Selected',
+    isPartnered: Boolean(row.is_partnered),
     currentStreak: row.current_streak ?? 0,
     bestStreak: row.best_streak ?? 0,
+    partnerStreak: row.partner_streak ?? 0,
+    bestPartnerStreak: row.best_partner_streak ?? 0,
     totalGymTimeMinutes: row.total_gym_time_minutes ?? 0,
     workoutsCount: row.workouts_count ?? 0,
     weeklyGoal: row.weekly_goal ?? 1,
@@ -214,8 +220,11 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
         auth_user_id: data.authUserId || null,
         gym_id: data.gymId || null,
         gym_name: data.gymName || null,
+        is_partnered: Boolean(data.isPartnered),
         current_streak: data.currentStreak,
         best_streak: data.bestStreak,
+        partner_streak: data.partnerStreak ?? 0,
+        best_partner_streak: data.bestPartnerStreak ?? 0,
         total_gym_time_minutes: data.totalGymTimeMinutes,
         workouts_count: data.workoutsCount,
         weekly_goal: data.weeklyGoal,
@@ -252,6 +261,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
           week_id: w.weekId,
           duration_minutes: w.durationMinutes,
           verified_by_gps: w.verifiedByGps,
+          is_partnered: Boolean(w.isPartnered),
           workout_timestamp: w.timestamp,
           updated_at: w.updatedAt || nowIso,
         }));
@@ -291,11 +301,14 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
     try {
       const limit = params.limit || 100;
       const queryParts: string[] = [
-        'select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,current_streak,best_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at',
+        'select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,is_partnered,current_streak,best_streak,partner_streak,best_partner_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at',
         `limit=${limit}`,
       ];
 
-      if (params.category === 'gym') {
+      if (params.category === 'global') {
+        queryParts.push('is_partnered=eq.true');
+      } else if (params.category === 'gym') {
+        queryParts.push('is_partnered=eq.true');
         if (params.gymId) {
           queryParts.push(`gym_id=eq.${encodeURIComponent(params.gymId)}`);
         } else if (params.gymName) {
@@ -341,7 +354,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
 
     try {
       const allRes = await fetch(
-        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,current_streak,best_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at&limit=100`,
+        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,is_partnered,current_streak,best_streak,partner_streak,best_partner_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at&limit=100`,
         {
           method: 'GET',
           headers: this.getHeaders(),

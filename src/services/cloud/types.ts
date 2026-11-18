@@ -1,4 +1,4 @@
-import { AuthProviderType, WorkoutSession } from '../../types/fitness';
+import { AuthProviderType, UserGender, WorkoutSession } from '../../types/fitness';
 
 export interface RemoteLeaderboardUser {
   id: string;
@@ -6,6 +6,8 @@ export interface RemoteLeaderboardUser {
   userTag: string;
   email?: string | null;
   authProvider?: AuthProviderType;
+  gender?: UserGender;
+  age?: number | null;
   gymId: string | null;
   gymName: string;
   isPartnered: boolean;
@@ -29,6 +31,8 @@ export interface UserCloudSyncData {
   email?: string | null;
   authProvider?: AuthProviderType;
   authUserId?: string | null;
+  gender?: UserGender;
+  age?: number | null;
   gymId: string | null;
   gymName: string | null;
   isPartnered?: boolean;

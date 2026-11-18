@@ -8,16 +8,19 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
 import { RemoteLeaderboardUser } from '../../services/cloud';
-import { WeightUnit } from '../../types/fitness';
+import { AgeRangeSlider, MAX_AGE_BOUND, MIN_AGE_BOUND } from '../../components/AgeRangeSlider';
+import { UserGender, WeightUnit } from '../../types/fitness';
 import { formatWeightWithUnit } from '../../utils/weightUtils';
 import { theme } from '../../constants/theme';
 
 type LeaderboardCategory = 'global' | 'gym' | 'friends';
+type GenderFilter = 'all' | 'male' | 'female';
 type LeaderboardFilter =
   | 'currentStreak'
   | 'bestStreak'
@@ -34,6 +37,8 @@ interface LeaderboardEntry {
   isCurrentUser: boolean;
   gymName: string;
   isPartnered: boolean;
+  gender?: UserGender;
+  age?: number | null;
   currentStreak: number;
   bestStreak: number;
   totalGymTimeMinutes: number;
@@ -95,6 +100,10 @@ export default function LeaderboardScreen() {
 
   const [selectedCategory, setSelectedCategory] = useState<LeaderboardCategory>('global');
   const [selectedFilter, setSelectedFilter] = useState<LeaderboardFilter>('currentStreak');
+  const [selectedGender, setSelectedGender] = useState<GenderFilter>('all');
+  const [minAge, setMinAge] = useState<number>(MIN_AGE_BOUND);
+  const [maxAge, setMaxAge] = useState<number>(MAX_AGE_BOUND);
+  const [moreFiltersVisible, setMoreFiltersVisible] = useState<boolean>(false);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(
     userProfile.preferredWeightUnit || 'lbs'
   );
@@ -186,6 +195,8 @@ export default function LeaderboardScreen() {
         isCurrentUser: true,
         gymName: preferences.gymLocation?.name || 'No Gym Selected',
         isPartnered: Boolean(preferences.gymLocation?.isPartnered),
+        gender: userProfile.gender ?? null,
+        age: userProfile.age ?? null,
         currentStreak: usePartnerStreak
           ? streakState.partnerStreak ?? 0
           : streakState.currentStreak,
@@ -254,6 +265,8 @@ export default function LeaderboardScreen() {
           isCurrentUser: false,
           gymName: u.gymName || 'No Gym Selected',
           isPartnered: Boolean(u.isPartnered),
+          gender: u.gender ?? null,
+          age: u.age ?? null,
           currentStreak: usePartnerStreak ? u.partnerStreak ?? 0 : u.currentStreak,
           bestStreak: usePartnerStreak ? u.bestPartnerStreak ?? 0 : u.bestStreak,
           totalGymTimeMinutes: u.totalGymTimeMinutes,
@@ -266,9 +279,21 @@ export default function LeaderboardScreen() {
 
     const includeCurrentUser =
       selectedCategory === 'friends' || currentUserEntry.isPartnered;
-    const list = includeCurrentUser
+    const rawList = includeCurrentUser
       ? [currentUserEntry, ...otherEntries]
       : [...otherEntries];
+    const isAgeFiltered = minAge > MIN_AGE_BOUND || maxAge < MAX_AGE_BOUND;
+    const list = rawList.filter((entry) => {
+      if (selectedGender !== 'all' && entry.gender !== selectedGender) {
+        return false;
+      }
+      if (isAgeFiltered) {
+        if (typeof entry.age !== 'number') return false;
+        if (entry.age < minAge) return false;
+        if (maxAge < MAX_AGE_BOUND && entry.age > maxAge) return false;
+      }
+      return true;
+    });
     list.sort((a, b) => {
       if (selectedFilter === 'currentStreak') return b.currentStreak - a.currentStreak;
       if (selectedFilter === 'bestStreak') return b.bestStreak - a.bestStreak;
@@ -287,6 +312,9 @@ export default function LeaderboardScreen() {
     currentUserEntry,
     selectedCategory,
     selectedFilter,
+    selectedGender,
+    minAge,
+    maxAge,
     preferences.gymLocation,
   ]);
 
@@ -644,44 +672,44 @@ export default function LeaderboardScreen() {
           })}
         </View>
 
-        {/* 2. Filter Pills & lbs/kg Toggle */}
+        {/* 2. Filter Pills & More Button */}
         <View style={styles.filterSection}>
           <View style={styles.filterHeaderRow}>
             <Text style={styles.filterHeaderLabel}>SORT BY</Text>
-            <View style={styles.unitTogglePill}>
-              <TouchableOpacity
+            <TouchableOpacity
+              style={[
+                styles.moreBtn,
+                (selectedGender !== 'all' ||
+                  minAge > MIN_AGE_BOUND ||
+                  maxAge < MAX_AGE_BOUND) &&
+                  styles.moreBtnActive,
+              ]}
+              onPress={() => setMoreFiltersVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="options-outline"
+                size={14}
+                color={
+                  selectedGender !== 'all' ||
+                  minAge > MIN_AGE_BOUND ||
+                  maxAge < MAX_AGE_BOUND
+                    ? theme.primaryLight
+                    : theme.textSecondary
+                }
+              />
+              <Text
                 style={[
-                  styles.unitOptionBtn,
-                  weightUnit === 'lbs' && styles.unitOptionBtnActive,
+                  styles.moreBtnText,
+                  (selectedGender !== 'all' ||
+                    minAge > MIN_AGE_BOUND ||
+                    maxAge < MAX_AGE_BOUND) &&
+                    styles.moreBtnTextActive,
                 ]}
-                onPress={() => handleToggleWeightUnit('lbs')}
               >
-                <Text
-                  style={[
-                    styles.unitOptionText,
-                    weightUnit === 'lbs' && styles.unitOptionTextActive,
-                  ]}
-                >
-                  lbs
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.unitOptionBtn,
-                  weightUnit === 'kg' && styles.unitOptionBtnActive,
-                ]}
-                onPress={() => handleToggleWeightUnit('kg')}
-              >
-                <Text
-                  style={[
-                    styles.unitOptionText,
-                    weightUnit === 'kg' && styles.unitOptionTextActive,
-                  ]}
-                >
-                  kg
-                </Text>
-              </TouchableOpacity>
-            </View>
+                More
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.filterWrapRow}>
@@ -758,6 +786,130 @@ export default function LeaderboardScreen() {
           }
         />
       </View>
+
+      {/* More Filters Modal (Gender, lbs/kg, Age Range Slider) */}
+      <Modal
+        visible={moreFiltersVisible}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setMoreFiltersVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <Ionicons name="options-outline" size={20} color={theme.primaryLight} />
+                <Text style={styles.modalTitle}>Filters & Units</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setMoreFiltersVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={22} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Weight Unit Toggle */}
+            <Text style={styles.modalSectionLabel}>Weight Unit</Text>
+            <View style={styles.modalToggleRow}>
+              <TouchableOpacity
+                style={[
+                  styles.modalToggleBtn,
+                  weightUnit === 'lbs' && styles.modalToggleBtnActive,
+                ]}
+                onPress={() => handleToggleWeightUnit('lbs')}
+              >
+                <Text
+                  style={[
+                    styles.modalToggleText,
+                    weightUnit === 'lbs' && styles.modalToggleTextActive,
+                  ]}
+                >
+                  lbs
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalToggleBtn,
+                  weightUnit === 'kg' && styles.modalToggleBtnActive,
+                ]}
+                onPress={() => handleToggleWeightUnit('kg')}
+              >
+                <Text
+                  style={[
+                    styles.modalToggleText,
+                    weightUnit === 'kg' && styles.modalToggleTextActive,
+                  ]}
+                >
+                  kg
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Gender Filter */}
+            <Text style={styles.modalSectionLabel}>Gender</Text>
+            <View style={styles.modalToggleRow}>
+              {(
+                [
+                  { key: 'all', label: 'All' },
+                  { key: 'male', label: 'Men' },
+                  { key: 'female', label: 'Women' },
+                ] as { key: GenderFilter; label: string }[]
+              ).map((g) => (
+                <TouchableOpacity
+                  key={g.key}
+                  style={[
+                    styles.modalToggleBtn,
+                    selectedGender === g.key && styles.modalToggleBtnActive,
+                  ]}
+                  onPress={() => setSelectedGender(g.key)}
+                >
+                  <Text
+                    style={[
+                      styles.modalToggleText,
+                      selectedGender === g.key && styles.modalToggleTextActive,
+                    ]}
+                  >
+                    {g.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Age Range Slider */}
+            <View style={styles.modalAgeSection}>
+              <AgeRangeSlider
+                minAge={minAge}
+                maxAge={maxAge}
+                onChange={(nextMin, nextMax) => {
+                  setMinAge(nextMin);
+                  setMaxAge(nextMax);
+                }}
+              />
+            </View>
+
+            <View style={styles.modalFooterRow}>
+              <TouchableOpacity
+                style={styles.modalResetBtn}
+                onPress={() => {
+                  setSelectedGender('all');
+                  setMinAge(MIN_AGE_BOUND);
+                  setMaxAge(MAX_AGE_BOUND);
+                }}
+              >
+                <Text style={styles.modalResetText}>Reset</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalDoneBtn}
+                onPress={() => setMoreFiltersVisible(false)}
+              >
+                <Text style={styles.modalDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -825,36 +977,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  moreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: theme.cardBackground,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  moreBtnActive: {
+    backgroundColor: theme.primaryMuted,
+    borderColor: theme.primary,
+  },
+  moreBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.textSecondary,
+  },
+  moreBtnTextActive: {
+    color: theme.primaryLight,
+  },
   filterHeaderLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: theme.textTertiary,
     letterSpacing: 1,
-  },
-  unitTogglePill: {
-    flexDirection: 'row',
-    backgroundColor: theme.cardBackground,
-    borderRadius: 10,
-    padding: 2,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-    gap: 2,
-  },
-  unitOptionBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  unitOptionBtnActive: {
-    backgroundColor: theme.primary,
-  },
-  unitOptionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: theme.textSecondary,
-  },
-  unitOptionTextActive: {
-    color: theme.onPrimary,
   },
   filterWrapRow: {
     flexDirection: 'row',
@@ -1267,5 +1417,107 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.textTertiary,
     marginTop: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: theme.cardBackground,
+    borderRadius: 22,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: theme.textPrimary,
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalSectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.textPrimary,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modalToggleRow: {
+    flexDirection: 'row',
+    backgroundColor: theme.inputBackground,
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    gap: 6,
+  },
+  modalToggleBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 9,
+    alignItems: 'center',
+  },
+  modalToggleBtnActive: {
+    backgroundColor: theme.primary,
+  },
+  modalToggleText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.textSecondary,
+  },
+  modalToggleTextActive: {
+    color: theme.onPrimary,
+  },
+  modalAgeSection: {
+    marginTop: 14,
+  },
+  modalFooterRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+  },
+  modalResetBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  modalResetText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.textSecondary,
+  },
+  modalDoneBtn: {
+    flex: 2,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: theme.primary,
+  },
+  modalDoneText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.onPrimary,
   },
 });

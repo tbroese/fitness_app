@@ -44,6 +44,8 @@ export function createDefaultUserProfile(): UserProfile {
     email: null,
     authProvider: 'device',
     authUserId: null,
+    gender: null,
+    age: null,
     squatPrKg: 0,
     benchPrKg: 0,
     deadliftPrKg: 0,
@@ -100,6 +102,14 @@ export const storageService = {
           email: parsed.email ?? null,
           authProvider: parsed.authProvider || 'device',
           authUserId: parsed.authUserId ?? null,
+          gender:
+            parsed.gender === 'male' || parsed.gender === 'female'
+              ? parsed.gender
+              : null,
+          age:
+            typeof parsed.age === 'number' && parsed.age > 0
+              ? parsed.age
+              : null,
           squatPrKg: typeof parsed.squatPrKg === 'number' ? parsed.squatPrKg : 0,
           benchPrKg: typeof parsed.benchPrKg === 'number' ? parsed.benchPrKg : 0,
           deadliftPrKg: typeof parsed.deadliftPrKg === 'number' ? parsed.deadliftPrKg : 0,

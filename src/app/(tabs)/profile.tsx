@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
-import { WeightUnit } from '../../types/fitness';
+import { UserGender, WeightUnit } from '../../types/fitness';
 import {
   convertFromKg,
   convertToKg,
@@ -44,6 +44,9 @@ export default function ProfileScreen() {
 
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [fullName, setFullName] = useState(userProfile.fullName);
+  const [ageInput, setAgeInput] = useState(
+    userProfile.age ? String(userProfile.age) : ''
+  );
   const [deleting, setDeleting] = useState(false);
 
   // Edit PR modal state
@@ -56,6 +59,10 @@ export default function ProfileScreen() {
   useEffect(() => {
     setFullName(userProfile.fullName);
   }, [userProfile.fullName]);
+
+  useEffect(() => {
+    setAgeInput(userProfile.age ? String(userProfile.age) : '');
+  }, [userProfile.age]);
 
   useEffect(() => {
     if (userProfile.preferredWeightUnit) {
@@ -75,6 +82,7 @@ export default function ProfileScreen() {
   const squatKg = userProfile.squatPrKg ?? 0;
   const benchKg = userProfile.benchPrKg ?? 0;
   const deadliftKg = userProfile.deadliftPrKg ?? 0;
+  const currentGender: UserGender = userProfile.gender ?? null;
 
   const openEditPrModal = (lift: LiftKey) => {
     const unit = userProfile.preferredWeightUnit || 'lbs';
@@ -115,6 +123,30 @@ export default function ProfileScreen() {
       preferredWeightUnit: prUnit,
     });
     setEditingLift(null);
+  };
+
+  const handleSelectGender = async (nextGender: UserGender) => {
+    await updateUserProfile(userProfile.fullName || 'Athlete', {
+      gender: nextGender,
+    });
+  };
+
+  const handleSaveAge = async () => {
+    const trimmed = ageInput.trim();
+    if (!trimmed) {
+      await updateUserProfile(userProfile.fullName || 'Athlete', { age: null });
+      Alert.alert('Saved', 'Age cleared.');
+      return;
+    }
+
+    const parsed = parseInt(trimmed, 10);
+    if (isNaN(parsed) || parsed < 13 || parsed > 110) {
+      Alert.alert('Invalid Age', 'Please enter an age between 13 and 110, or leave blank.');
+      return;
+    }
+
+    await updateUserProfile(userProfile.fullName || 'Athlete', { age: parsed });
+    Alert.alert('Saved', `Age updated to ${parsed}.`);
   };
 
   const handleSaveName = async () => {
@@ -158,7 +190,11 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Hero Profile Banner with Settings Gear Button */}
         <View style={styles.heroCard}>
           <View style={styles.avatarCircle}>
@@ -243,6 +279,67 @@ export default function ProfileScreen() {
             </Text>
             <Text style={styles.prLabel}>Deadlift PR</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Athlete Details (Gender & Age - Optional for Leaderboard Filters) */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="body-outline" size={20} color={theme.primaryLight} />
+            <Text style={styles.sectionTitle}>Athlete Details</Text>
+          </View>
+          <Text style={styles.sectionDesc}>
+            Optional details used when filtering the leaderboard by gender or age.
+          </Text>
+
+          <Text style={styles.fieldLabel}>Gender</Text>
+          <View style={styles.unitToggleRow}>
+            {(
+              [
+                { key: null, label: 'Not Set' },
+                { key: 'male', label: 'Male' },
+                { key: 'female', label: 'Female' },
+              ] as { key: UserGender; label: string }[]
+            ).map((opt) => {
+              const active = currentGender === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={[
+                    styles.unitToggleBtn,
+                    active && styles.unitToggleBtnActive,
+                  ]}
+                  onPress={() => handleSelectGender(opt.key)}
+                >
+                  <Text
+                    style={[
+                      styles.unitToggleText,
+                      active && styles.unitToggleTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.fieldLabel}>Age</Text>
+          <View style={styles.ageRow}>
+            <TextInput
+              style={[styles.input, styles.ageInput]}
+              value={ageInput}
+              onChangeText={setAgeInput}
+              keyboardType="number-pad"
+              placeholder="Leave blank or enter age"
+              placeholderTextColor={theme.textTertiary}
+              maxLength={3}
+              returnKeyType="done"
+              onSubmitEditing={handleSaveAge}
+            />
+            <TouchableOpacity style={styles.ageSaveBtn} onPress={handleSaveAge}>
+              <Text style={styles.ageSaveBtnText}>Save</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Unique Friend Tag Card */}
@@ -347,7 +444,7 @@ export default function ProfileScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Settings Modal */}
+      {/* Settings Modal (Edit Display Name + Delete Account) */}
       <Modal
         visible={settingsVisible}
         animationType="fade"
@@ -546,8 +643,8 @@ const styles = StyleSheet.create({
   sectionCard: {
     backgroundColor: theme.cardBackground,
     borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    padding: 18,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: theme.cardBorder,
   },
@@ -567,6 +664,27 @@ const styles = StyleSheet.create({
     color: theme.textSecondary,
     lineHeight: 17,
     marginBottom: 12,
+  },
+  ageRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  ageInput: {
+    flex: 1,
+  },
+  ageSaveBtn: {
+    backgroundColor: theme.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ageSaveBtnText: {
+    color: theme.onPrimary,
+    fontWeight: '700',
+    fontSize: 14,
   },
   tagInfoRow: {
     flexDirection: 'row',
@@ -632,7 +750,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.cardBorder,
     gap: 6,
-    marginTop: 6,
+    marginTop: 4,
     marginBottom: 4,
   },
   unitToggleBtn: {

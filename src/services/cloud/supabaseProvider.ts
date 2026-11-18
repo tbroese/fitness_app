@@ -1,7 +1,7 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { SUPABASE_CONFIG } from '../../constants/config';
-import { AuthProviderType } from '../../types/fitness';
+import { AuthProviderType, UserGender } from '../../types/fitness';
 import {
   CloudDatabaseProvider,
   FetchLeaderboardParams,
@@ -53,6 +53,8 @@ interface SupabaseLeaderboardRow {
   email?: string | null;
   auth_provider?: string | null;
   auth_user_id?: string | null;
+  gender?: string | null;
+  age?: number | null;
   gym_id: string | null;
   gym_name: string | null;
   is_partnered?: boolean;
@@ -85,6 +87,11 @@ function mapRowToLeaderboardUser(row: SupabaseLeaderboardRow): RemoteLeaderboard
     userTag: row.user_tag || '0000',
     email: row.email ?? null,
     authProvider: (row.auth_provider as AuthProviderType) || 'device',
+    gender:
+      row.gender === 'male' || row.gender === 'female'
+        ? (row.gender as UserGender)
+        : null,
+    age: typeof row.age === 'number' ? row.age : null,
     gymId: row.gym_id,
     gymName: row.gym_name || 'No Gym Selected',
     isPartnered: Boolean(row.is_partnered),
@@ -218,6 +225,8 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
         email: data.email ? data.email.trim().toLowerCase() : null,
         auth_provider: data.authProvider || 'device',
         auth_user_id: data.authUserId || null,
+        gender: data.gender ?? null,
+        age: data.age ?? null,
         gym_id: data.gymId || null,
         gym_name: data.gymName || null,
         is_partnered: Boolean(data.isPartnered),
@@ -301,7 +310,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
     try {
       const limit = params.limit || 100;
       const queryParts: string[] = [
-        'select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,is_partnered,current_streak,best_streak,partner_streak,best_partner_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at',
+        'select=id,full_name,user_tag,email,auth_provider,gender,age,gym_id,gym_name,is_partnered,current_streak,best_streak,partner_streak,best_partner_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at',
         `limit=${limit}`,
       ];
 
@@ -354,7 +363,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
 
     try {
       const allRes = await fetch(
-        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?select=id,full_name,user_tag,email,auth_provider,gym_id,gym_name,is_partnered,current_streak,best_streak,partner_streak,best_partner_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at&limit=100`,
+        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?select=id,full_name,user_tag,email,auth_provider,gender,age,gym_id,gym_name,is_partnered,current_streak,best_streak,partner_streak,best_partner_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at&limit=100`,
         {
           method: 'GET',
           headers: this.getHeaders(),

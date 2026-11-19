@@ -18,7 +18,7 @@ interface WeeklyProgressCardProps {
   currentWeekWorkouts: number;
   workouts: WorkoutSession[];
   isReset?: boolean;
-  isPartneredGym?: boolean;
+  isVerifiedGym?: boolean;
   signupDate?: string;
 }
 
@@ -27,7 +27,7 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   currentWeekWorkouts,
   workouts,
   isReset = false,
-  isPartneredGym = false,
+  isVerifiedGym = false,
   signupDate,
 }) => {
   const { theme } = useFitness();
@@ -40,13 +40,13 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   const progressPercent = Math.min(100, Math.round((currentWeekWorkouts / effectiveGoal) * 100));
   const needed = Math.max(0, effectiveGoal - currentWeekWorkouts);
   const currentWeekCustomCount = workouts.filter(
-    (w) => w.weekId === currentWeekId && !w.isPartnered
+    (w) => w.weekId === currentWeekId && !w.isVerified
   ).length;
-  const currentWeekPartnerCount = workouts.filter(
-    (w) => w.weekId === currentWeekId && Boolean(w.isPartnered)
+  const currentWeekVerifiedCount = workouts.filter(
+    (w) => w.weekId === currentWeekId && Boolean(w.isVerified)
   ).length;
-  const partnerPercent = Math.min(100, (currentWeekPartnerCount / effectiveGoal) * 100);
-  const customPercent = Math.min(100 - partnerPercent, (currentWeekCustomCount / effectiveGoal) * 100);
+  const verifiedPercent = Math.min(100, (currentWeekVerifiedCount / effectiveGoal) * 100);
+  const customPercent = Math.min(100 - verifiedPercent, (currentWeekCustomCount / effectiveGoal) * 100);
 
   // Generate 7 days for current week (Mon-Sun)
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -55,13 +55,13 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
     const dateStr = formatDateToYYYYMMDD(d);
     const dayWorkout = workouts.find((w) => w.dateString === dateStr);
     const hasWorkout = Boolean(dayWorkout);
-    const isPartneredWorkout = Boolean(dayWorkout?.isPartnered);
+    const isVerifiedWorkout = Boolean(dayWorkout?.isVerified);
     const isToday = dateStr === formatDateToYYYYMMDD(new Date());
 
     return {
       name: getDayAbbreviation(i),
       hasWorkout,
-      isPartneredWorkout,
+      isVerifiedWorkout,
       isToday,
       dayNum: d.getDate(),
     };
@@ -104,12 +104,12 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
           />
         ) : (
           <>
-            {partnerPercent > 0 && (
+            {verifiedPercent > 0 && (
               <View
                 style={[
                   styles.progressBarFill,
                   {
-                    width: `${partnerPercent}%`,
+                    width: `${verifiedPercent}%`,
                     backgroundColor: theme.success,
                     borderRadius: 0,
                   },
@@ -143,7 +143,7 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
               style={[
                 styles.dayCircle,
                 item.hasWorkout &&
-                  (item.isPartneredWorkout
+                  (item.isVerifiedWorkout
                     ? styles.dayCircleCompleted
                     : styles.dayCircleCompletedCustom),
                 item.isToday && !item.hasWorkout && styles.dayCircleToday,
@@ -166,10 +166,10 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
         ))}
       </View>
 
-      {/* Mixed custom/partnered note when custom workouts were logged this week */}
+      {/* Mixed custom/verified note when custom workouts were logged this week */}
       {currentWeekCustomCount > 0 && (
         <Text style={styles.customNoteText}>
-          {currentWeekPartnerCount}/{weeklyGoal} partnered gym visits • {currentWeekCustomCount} custom (Personal & Friends)
+          {currentWeekVerifiedCount}/{weeklyGoal} verified gym visits • {currentWeekCustomCount} custom (Personal & Friends)
         </Text>
       )}
 

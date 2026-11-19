@@ -54,8 +54,8 @@ export function evaluateWeeklyReset(
     return {
       ...currentState,
       currentStreak: 0,
-      partnerStreak: 0,
-      bestPartnerStreak: 0,
+      verifiedStreak: 0,
+      bestVerifiedStreak: 0,
       currentWeekWorkouts: 0,
       lastEvaluatedWeekId: currentWeekId,
       streakStatus: 'active',
@@ -65,12 +65,12 @@ export function evaluateWeeklyReset(
   }
 
   let newStreak = currentState.currentStreak;
-  let newPartnerStreak = currentState.partnerStreak ?? 0;
-  const bestPartnerStreak = currentState.bestPartnerStreak ?? 0;
+  let newVerifiedStreak = currentState.verifiedStreak ?? 0;
+  const bestVerifiedStreak = currentState.bestVerifiedStreak ?? 0;
   let isReset = false;
   let statusMessage: string | undefined;
 
-  const partnerWorkouts = workouts.filter((w) => Boolean(w.isPartnered));
+  const verifiedWorkouts = workouts.filter((w) => Boolean(w.isVerified));
 
   // 1. Check if week transitioned from previous week
   if (currentState.lastEvaluatedWeekId && currentState.lastEvaluatedWeekId !== currentWeekId) {
@@ -85,11 +85,11 @@ export function evaluateWeeklyReset(
       isReset = true;
     }
 
-    const priorPartnerWeekWorkouts = partnerWorkouts.filter(
+    const priorVerifiedWeekWorkouts = verifiedWorkouts.filter(
       (w) => w.weekId === currentState.lastEvaluatedWeekId
     ).length;
-    if (priorPartnerWeekWorkouts < priorWeekTarget) {
-      newPartnerStreak = 0;
+    if (priorVerifiedWeekWorkouts < priorWeekTarget) {
+      newVerifiedStreak = 0;
     }
   }
 
@@ -100,10 +100,10 @@ export function evaluateWeeklyReset(
     signupDate
   );
   const currentWeekWorkouts = workouts.filter((w) => w.weekId === currentWeekId).length;
-  const currentPartnerWeekWorkouts = partnerWorkouts.filter(
+  const currentVerifiedWeekWorkouts = verifiedWorkouts.filter(
     (w) => w.weekId === currentWeekId
   ).length;
-  const workedOutAtPartnerToday = partnerWorkouts.some((w) => w.dateString === todayStr);
+  const workedOutAtVerifiedToday = verifiedWorkouts.some((w) => w.dateString === todayStr);
 
   // 3. Mid-week feasibility check:
   // If user has not yet met the weekly goal, check if enough days remain
@@ -119,14 +119,14 @@ export function evaluateWeeklyReset(
     }
   }
 
-  if (currentPartnerWeekWorkouts < currentWeekTarget) {
-    const partnerNeeded = currentWeekTarget - currentPartnerWeekWorkouts;
-    const partnerDaysAvailable = getAvailableWorkoutDaysRemaining(
+  if (currentVerifiedWeekWorkouts < currentWeekTarget) {
+    const verifiedNeeded = currentWeekTarget - currentVerifiedWeekWorkouts;
+    const verifiedDaysAvailable = getAvailableWorkoutDaysRemaining(
       currentDate,
-      workedOutAtPartnerToday
+      workedOutAtVerifiedToday
     );
-    if (partnerDaysAvailable < partnerNeeded) {
-      newPartnerStreak = 0;
+    if (verifiedDaysAvailable < verifiedNeeded) {
+      newVerifiedStreak = 0;
     }
   }
 
@@ -134,7 +134,7 @@ export function evaluateWeeklyReset(
   if (isReset || (currentState.streakStatus === 'reset' && currentState.lastEvaluatedWeekId === currentWeekId)) {
     streakStatus = 'reset';
     newStreak = 0;
-    newPartnerStreak = 0;
+    newVerifiedStreak = 0;
     statusMessage = STREAK_LOST_MESSAGE;
   } else if (currentWeekWorkouts >= currentWeekTarget) {
     streakStatus = 'active';
@@ -146,8 +146,8 @@ export function evaluateWeeklyReset(
   return {
     ...currentState,
     currentStreak: newStreak,
-    partnerStreak: newPartnerStreak,
-    bestPartnerStreak: Math.max(bestPartnerStreak, newPartnerStreak),
+    verifiedStreak: newVerifiedStreak,
+    bestVerifiedStreak: Math.max(bestVerifiedStreak, newVerifiedStreak),
     currentWeekWorkouts,
     lastEvaluatedWeekId: currentWeekId,
     streakStatus,
@@ -168,7 +168,7 @@ export function recordCompletedWorkout(
   workoutDate: Date = new Date(),
   durationMinutes: number = 15,
   userId?: string,
-  isPartnered: boolean = false,
+  isVerified: boolean = false,
   signupDate?: Date | string
 ): {
   success: boolean;
@@ -183,11 +183,11 @@ export function recordCompletedWorkout(
 
   // Check if a workout has already been recorded today
   const existingTodayWorkout = existingWorkouts.find((w) => w.dateString === dateString);
-  const isSameDayPartnerUpgrade = Boolean(
-    existingTodayWorkout && !existingTodayWorkout.isPartnered && isPartnered
+  const isSameDayVerifiedUpgrade = Boolean(
+    existingTodayWorkout && !existingTodayWorkout.isVerified && isVerified
   );
 
-  if (existingTodayWorkout && !isSameDayPartnerUpgrade) {
+  if (existingTodayWorkout && !isSameDayVerifiedUpgrade) {
     return {
       success: false,
       message: 'Workout already completed for today! Max 1 check-in per day.',
@@ -197,7 +197,7 @@ export function recordCompletedWorkout(
   }
 
   // Enforce 180-minute cooldown between workouts
-  if (!isSameDayPartnerUpgrade && existingWorkouts.length > 0) {
+  if (!isSameDayVerifiedUpgrade && existingWorkouts.length > 0) {
     const lastWorkoutMs = existingWorkouts.reduce(
       (maxMs, w) => Math.max(maxMs, new Date(w.timestamp).getTime()),
       0
@@ -214,10 +214,10 @@ export function recordCompletedWorkout(
 
   let newWorkout: WorkoutSession;
   let updatedWorkouts: WorkoutSession[];
-  if (isSameDayPartnerUpgrade && existingTodayWorkout) {
+  if (isSameDayVerifiedUpgrade && existingTodayWorkout) {
     newWorkout = {
       ...existingTodayWorkout,
-      isPartnered: true,
+      isVerified: true,
       gymName,
       durationMinutes: Math.max(existingTodayWorkout.durationMinutes, durationMinutes),
       updatedAt: isoNow,
@@ -235,7 +235,7 @@ export function recordCompletedWorkout(
       dateString,
       durationMinutes,
       verifiedByGps: true,
-      isPartnered,
+      isVerified,
       gymName,
       weekId,
       updatedAt: isoNow,
@@ -245,30 +245,30 @@ export function recordCompletedWorkout(
   }
 
   const currentWeekWorkouts = updatedWorkouts.filter((w) => w.weekId === weekId).length;
-  const currentPartnerWeekWorkouts = updatedWorkouts.filter(
-    (w) => w.weekId === weekId && Boolean(w.isPartnered)
+  const currentVerifiedWeekWorkouts = updatedWorkouts.filter(
+    (w) => w.weekId === weekId && Boolean(w.isVerified)
   ).length;
 
   // Cap streak increments at the user's weekly goal so low-goal farming isn't possible.
-  // Same-day partner upgrades do not double-count Personal Streak.
+  // Same-day verified upgrades do not double-count Personal Streak.
   let newStreak = currentState.currentStreak;
   const withinWeeklyGoalCap = currentWeekWorkouts <= preferences.weeklyGoal;
-  if (!isSameDayPartnerUpgrade && currentState.streakStatus !== 'reset' && withinWeeklyGoalCap) {
+  if (!isSameDayVerifiedUpgrade && currentState.streakStatus !== 'reset' && withinWeeklyGoalCap) {
     newStreak = currentState.currentStreak + 1;
   }
 
-  // Partnered Gym Streak only increments for verified partnered gym visits
-  let newPartnerStreak = currentState.partnerStreak ?? 0;
+  // Verified Gym Streak only increments for verified gym visits
+  let newVerifiedStreak = currentState.verifiedStreak ?? 0;
   if (
-    isPartnered &&
+    isVerified &&
     currentState.streakStatus !== 'reset' &&
-    currentPartnerWeekWorkouts <= preferences.weeklyGoal
+    currentVerifiedWeekWorkouts <= preferences.weeklyGoal
   ) {
-    newPartnerStreak = newPartnerStreak + 1;
+    newVerifiedStreak = newVerifiedStreak + 1;
   }
 
   const bestStreak = Math.max(currentState.bestStreak, newStreak);
-  const bestPartnerStreak = Math.max(currentState.bestPartnerStreak ?? 0, newPartnerStreak);
+  const bestVerifiedStreak = Math.max(currentState.bestVerifiedStreak ?? 0, newVerifiedStreak);
 
   // Re-evaluate feasibility
   const evaluated = evaluateWeeklyReset(
@@ -277,8 +277,8 @@ export function recordCompletedWorkout(
       userId: userId || currentState.userId,
       currentStreak: newStreak,
       bestStreak,
-      partnerStreak: newPartnerStreak,
-      bestPartnerStreak,
+      verifiedStreak: newVerifiedStreak,
+      bestVerifiedStreak,
       currentWeekWorkouts,
       lastCompletedDate: dateString,
       lastEvaluatedWeekId: weekId,
@@ -296,8 +296,8 @@ export function recordCompletedWorkout(
     message:
       evaluated.streakStatus === 'reset'
         ? `Workout logged! However, ${STREAK_LOST_MESSAGE}`
-        : isSameDayPartnerUpgrade
-        ? `Upgraded today's workout at ${gymName} to Verified Gym! Partner Streak is now ${newPartnerStreak} 🔥`
+        : isSameDayVerifiedUpgrade
+        ? `Upgraded today's workout at ${gymName} to Verified Gym! Verified Streak is now ${newVerifiedStreak} 🔥`
         : !withinWeeklyGoalCap
         ? `Workout logged at ${gymName}! Weekly streak cap (${preferences.weeklyGoal}/wk) already reached.`
         : `Workout verified at ${gymName}! Streak is now ${newStreak} 🔥`,

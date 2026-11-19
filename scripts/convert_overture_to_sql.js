@@ -141,7 +141,7 @@ function main() {
     for (let bStart = 0; bStart < fileSlice.length; bStart += BATCH_ROWS) {
       const batch = fileSlice.slice(bStart, bStart + BATCH_ROWS);
       lines.push(
-        'INSERT INTO public.gyms (id, name, address, city, state, postal_code, latitude, longitude, is_partnered, source) VALUES'
+        'INSERT INTO public.gyms (id, name, address, city, state, postal_code, latitude, longitude, is_verified, source) VALUES'
       );
       lines.push(
         batch

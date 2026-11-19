@@ -128,7 +128,7 @@ export default function DashboardScreen() {
         <StreakCard
           streakState={streakState}
           weeklyGoal={preferences.weeklyGoal}
-          isPartneredGym={preferences.gymLocation?.isPartnered}
+          isVerifiedGym={preferences.gymLocation?.isVerified}
         />
 
         {/* 2. Weekly Goal & Calendar Card */}
@@ -137,7 +137,7 @@ export default function DashboardScreen() {
           currentWeekWorkouts={streakState.currentWeekWorkouts}
           workouts={workouts}
           isReset={isReset}
-          isPartneredGym={preferences.gymLocation?.isPartnered}
+          isVerifiedGym={preferences.gymLocation?.isVerified}
           signupDate={userProfile.createdAt}
         />
 
@@ -182,7 +182,7 @@ export default function DashboardScreen() {
               • <Text style={styles.infoBold}>Weekly Goal Cap:</Text> Streaks grow up to your weekly goal ({preferences.weeklyGoal}/week). Missing your goal resets your streak.
             </Text>
             <Text style={styles.infoText}>
-              • <Text style={styles.infoBold}>Partnered vs. Custom:</Text> Partnered gyms count on Global, Gym & Friends; custom gyms count toward Personal & Friends only.
+              • <Text style={styles.infoBold}>Verified vs. Custom:</Text> Verified gyms count on Global, Gym & Friends; custom gyms count toward Personal & Friends only.
             </Text>
           </View>
         </View>

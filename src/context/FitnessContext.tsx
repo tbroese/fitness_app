@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, AppStateStatus, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
-import { PARTNERED_GYMS, PartneredGym } from '../constants/partneredGyms';
+import { VERIFIED_GYMS, VerifiedGym } from '../constants/verifiedGyms';
 import {
   UserProfile,
   UserPreferences,
@@ -111,7 +111,7 @@ interface FitnessContextType {
   searchExistingGyms: (
     query: string,
     coords?: { latitude: number; longitude: number } | null
-  ) => Promise<PartneredGym[]>;
+  ) => Promise<VerifiedGym[]>;
   submitGymReport: (input: GymReportInput) => Promise<boolean>;
   submitBugReport: (input: BugReportInput) => Promise<boolean>;
   refreshFriendships: () => Promise<FriendshipsOverview>;
@@ -191,11 +191,11 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           age: profileSnap.age ?? null,
           gymId: prefsSnap.gymLocation?.id || null,
           gymName: prefsSnap.gymLocation?.name || null,
-          isPartnered: Boolean(prefsSnap.gymLocation?.isPartnered),
+          isVerified: Boolean(prefsSnap.gymLocation?.isVerified),
           currentStreak: streakSnap.currentStreak,
           bestStreak: streakSnap.bestStreak,
-          partnerStreak: streakSnap.partnerStreak ?? 0,
-          bestPartnerStreak: streakSnap.bestPartnerStreak ?? 0,
+          verifiedStreak: streakSnap.verifiedStreak ?? 0,
+          bestVerifiedStreak: streakSnap.bestVerifiedStreak ?? 0,
           totalGymTimeMinutes,
           workoutsCount: workoutsSnap.length,
           weeklyGoal: prefsSnap.weeklyGoal,
@@ -262,9 +262,9 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     async (
       query: string,
       coords?: { latitude: number; longitude: number } | null
-    ): Promise<PartneredGym[]> => {
+    ): Promise<VerifiedGym[]> => {
       const q = query.trim().toLowerCase();
-      const localMatches = PARTNERED_GYMS.filter(
+      const localMatches = VERIFIED_GYMS.filter(
         (g) =>
           !q ||
           g.name.toLowerCase().includes(q) ||
@@ -580,10 +580,10 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           userId: existingRemote.id,
           currentStreak: Math.max(streakState.currentStreak, existingRemote.currentStreak),
           bestStreak: Math.max(streakState.bestStreak, existingRemote.bestStreak),
-          partnerStreak: Math.max(streakState.partnerStreak ?? 0, existingRemote.partnerStreak ?? 0),
-          bestPartnerStreak: Math.max(
-            streakState.bestPartnerStreak ?? 0,
-            existingRemote.bestPartnerStreak ?? 0
+          verifiedStreak: Math.max(streakState.verifiedStreak ?? 0, existingRemote.verifiedStreak ?? 0),
+          bestVerifiedStreak: Math.max(
+            streakState.bestVerifiedStreak ?? 0,
+            existingRemote.bestVerifiedStreak ?? 0
           ),
         };
 
@@ -906,7 +906,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const isChangingGym =
       preferences.gymLocation?.name !== lockedLocation.name ||
-      Boolean(preferences.gymLocation?.isPartnered) !== Boolean(lockedLocation.isPartnered) ||
+      Boolean(preferences.gymLocation?.isVerified) !== Boolean(lockedLocation.isVerified) ||
       Boolean(preferences.gymLocation?.isManual) !== Boolean(lockedLocation.isManual);
 
     if (lockedLocation.isManual) {
@@ -927,15 +927,15 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (isChangingGym) {
       const today = formatDateToYYYYMMDD(new Date());
       const todayWorkout = workouts.find((w) => w.dateString === today);
-      const isUpgradingToPartnered = Boolean(
-        todayWorkout && !todayWorkout.isPartnered && lockedLocation.isPartnered
+      const isUpgradingToVerified = Boolean(
+        todayWorkout && !todayWorkout.isVerified && lockedLocation.isVerified
       );
       const resetSession: DwellSessionState = {
         isDwelling: false,
         enteredAt: undefined,
         minutesDwelling: 0,
         gymName: lockedLocation.name,
-        completedToday: Boolean(todayWorkout) && !isUpgradingToPartnered,
+        completedToday: Boolean(todayWorkout) && !isUpgradingToVerified,
         dateString: today,
       };
       await storageService.saveDwellSession(resetSession);
@@ -1131,10 +1131,10 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const simulateDwellProgress = async (addMinutes: number) => {
     const today = formatDateToYYYYMMDD(new Date());
     const todayWorkout = workouts.find((w) => w.dateString === today);
-    const isUpgradingToPartnered = Boolean(
-      todayWorkout && !todayWorkout.isPartnered && preferences.gymLocation?.isPartnered
+    const isUpgradingToVerified = Boolean(
+      todayWorkout && !todayWorkout.isVerified && preferences.gymLocation?.isVerified
     );
-    const baseDwell = !dwellState.isDwelling && isUpgradingToPartnered ? 0 : dwellState.minutesDwelling;
+    const baseDwell = !dwellState.isDwelling && isUpgradingToVerified ? 0 : dwellState.minutesDwelling;
     const newDwell = baseDwell + addMinutes;
     const simulatedEnteredAt = new Date(Date.now() - newDwell * 60 * 1000).toISOString();
 

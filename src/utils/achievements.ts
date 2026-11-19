@@ -23,7 +23,7 @@ export function computeAchievements(params: {
 
   const workoutCount = workouts.length;
   const bestStreak = streakState.bestStreak ?? 0;
-  const bestPartnerStreak = streakState.bestPartnerStreak ?? 0;
+  const bestVerifiedStreak = streakState.bestVerifiedStreak ?? 0;
 
   const totalMinutes = workouts.reduce((sum, w) => sum + (w.durationMinutes || 0), 0);
   const totalHours = Math.floor(totalMinutes / 60);
@@ -90,8 +90,8 @@ export function computeAchievements(params: {
       id: 'certified_regular',
       name: 'Certified Regular',
       description: 'Reach a Verified Gym Streak of 10 workouts.',
-      progressText: `${Math.min(bestPartnerStreak, 10)} / 10 verified`,
-      unlocked: bestPartnerStreak >= 10,
+      progressText: `${Math.min(bestVerifiedStreak, 10)} / 10 verified`,
+      unlocked: bestVerifiedStreak >= 10,
       icon: 'shield-checkmark-outline',
     },
 

@@ -9,21 +9,21 @@ import { STREAK_LOST_MESSAGE } from '../services/streakManager';
 interface StreakCardProps {
   streakState: StreakState;
   weeklyGoal: number;
-  isPartneredGym?: boolean;
+  isVerifiedGym?: boolean;
 }
 
 export const StreakCard: React.FC<StreakCardProps> = ({
   streakState,
   weeklyGoal,
-  isPartneredGym,
+  isVerifiedGym,
 }) => {
   const { theme } = useFitness();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const isAtRisk = streakState.streakStatus === 'at_risk';
   const isReset = streakState.streakStatus === 'reset';
-  const partnerStreak = streakState.partnerStreak ?? 0;
+  const verifiedStreak = streakState.verifiedStreak ?? 0;
   const showSplitBreakdown =
-    partnerStreak !== streakState.currentStreak || isPartneredGym === false;
+    verifiedStreak !== streakState.currentStreak || isVerifiedGym === false;
 
   return (
     <View style={[styles.container, isReset && styles.containerReset, isAtRisk && styles.containerAtRisk]}>
@@ -57,7 +57,7 @@ export const StreakCard: React.FC<StreakCardProps> = ({
         </View>
       </View>
 
-      {/* Split Breakdown (Only shown when Personal & Partnered streaks differ or on a Custom Gym) */}
+      {/* Split Breakdown (Only shown when Personal & Verified streaks differ or on a Custom Gym) */}
       {showSplitBreakdown && (
         <View style={styles.splitRow}>
           <View style={styles.splitPill}>
@@ -66,7 +66,7 @@ export const StreakCard: React.FC<StreakCardProps> = ({
           </View>
           <View style={styles.splitPill}>
             <Text style={styles.splitLabel}>Verified Gym (Global)</Text>
-            <Text style={styles.splitValue}>{partnerStreak} 🏟️</Text>
+            <Text style={styles.splitValue}>{verifiedStreak} 🏟️</Text>
           </View>
         </View>
       )}

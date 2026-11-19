@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS public.leaderboard_users (
   age INTEGER,
   gym_id TEXT,
   gym_name TEXT,
-  is_partnered BOOLEAN NOT NULL DEFAULT FALSE,
+  is_verified BOOLEAN NOT NULL DEFAULT FALSE,
   current_streak INTEGER NOT NULL DEFAULT 0,
   best_streak INTEGER NOT NULL DEFAULT 0,
-  partner_streak INTEGER NOT NULL DEFAULT 0,
-  best_partner_streak INTEGER NOT NULL DEFAULT 0,
+  verified_streak INTEGER NOT NULL DEFAULT 0,
+  best_verified_streak INTEGER NOT NULL DEFAULT 0,
   total_gym_time_minutes INTEGER NOT NULL DEFAULT 0,
   workouts_count INTEGER NOT NULL DEFAULT 0,
   weekly_goal INTEGER NOT NULL DEFAULT 2,
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS public.user_workouts (
   week_id TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL DEFAULT 15,
   verified_by_gps BOOLEAN NOT NULL DEFAULT TRUE,
-  is_partnered BOOLEAN NOT NULL DEFAULT FALSE,
+  is_verified BOOLEAN NOT NULL DEFAULT FALSE,
   workout_timestamp TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS public.gyms (
   postal_code TEXT,
   latitude DOUBLE PRECISION NOT NULL,
   longitude DOUBLE PRECISION NOT NULL,
-  is_partnered BOOLEAN NOT NULL DEFAULT TRUE,
+  is_verified BOOLEAN NOT NULL DEFAULT TRUE,
   source TEXT NOT NULL DEFAULT 'osm',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

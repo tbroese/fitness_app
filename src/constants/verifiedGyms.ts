@@ -1,4 +1,4 @@
-export interface PartneredGym {
+export interface VerifiedGym {
   id: string;
   name: string;
   address: string;
@@ -6,7 +6,7 @@ export interface PartneredGym {
   longitude: number;
 }
 
-export const PARTNERED_GYMS: PartneredGym[] = [
+export const VERIFIED_GYMS: VerifiedGym[] = [
   {
     id: 'partner_axioms_fitness_anaheim',
     name: 'Axioms Fitness',

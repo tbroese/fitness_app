@@ -74,8 +74,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 export const DEFAULT_STREAK_STATE: StreakState = {
   currentStreak: 0,
   bestStreak: 0,
-  partnerStreak: 0,
-  bestPartnerStreak: 0,
+  verifiedStreak: 0,
+  bestVerifiedStreak: 0,
   currentWeekWorkouts: 0,
   streakStatus: 'active',
   lastEvaluatedWeekId: getIsoWeekId(new Date()),
@@ -164,6 +164,13 @@ export const storageService = {
           parsed.gymLocation.name === 'Metropolis Fitness Club')
       ) {
         parsed.gymLocation = null;
+      } else if (
+        parsed.gymLocation &&
+        parsed.gymLocation.isVerified === undefined &&
+        parsed.gymLocation.isPartnered !== undefined
+      ) {
+        parsed.gymLocation.isVerified = Boolean(parsed.gymLocation.isPartnered);
+        delete parsed.gymLocation.isPartnered;
       }
       return { ...DEFAULT_PREFERENCES, ...parsed };
     } catch {
@@ -186,7 +193,15 @@ export const storageService = {
   async getWorkouts(): Promise<WorkoutSession[]> {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.WORKOUTS);
-      return data ? JSON.parse(data) : [];
+      if (!data) return [];
+      const parsed: any[] = JSON.parse(data);
+      return parsed.map((w) => {
+        if (w.isVerified === undefined && w.isPartnered !== undefined) {
+          const { isPartnered, ...rest } = w;
+          return { ...rest, isVerified: Boolean(isPartnered) };
+        }
+        return w;
+      });
     } catch {
       return [];
     }
@@ -203,7 +218,17 @@ export const storageService = {
   async getStreakState(): Promise<StreakState> {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.STREAK_STATE);
-      return data ? JSON.parse(data) : DEFAULT_STREAK_STATE;
+      if (!data) return DEFAULT_STREAK_STATE;
+      const parsed = JSON.parse(data);
+      if (parsed.verifiedStreak === undefined && parsed.partnerStreak !== undefined) {
+        parsed.verifiedStreak = parsed.partnerStreak;
+        delete parsed.partnerStreak;
+      }
+      if (parsed.bestVerifiedStreak === undefined && parsed.bestPartnerStreak !== undefined) {
+        parsed.bestVerifiedStreak = parsed.bestPartnerStreak;
+        delete parsed.bestPartnerStreak;
+      }
+      return { ...DEFAULT_STREAK_STATE, ...parsed };
     } catch {
       return DEFAULT_STREAK_STATE;
     }
@@ -277,17 +302,17 @@ export const storageService = {
     }
 
     const todayWorkout = workouts.find((w) => w.dateString === today);
-    const isPartneredGym = Boolean(prefs.gymLocation?.isPartnered);
-    const isUpgradingToPartnered = Boolean(
-      todayWorkout && !todayWorkout.isPartnered && isPartneredGym
+    const isVerifiedGym = Boolean(prefs.gymLocation?.isVerified);
+    const isUpgradingToVerified = Boolean(
+      todayWorkout && !todayWorkout.isVerified && isVerifiedGym
     );
-    const completedToday = Boolean(todayWorkout) && !isUpgradingToPartnered;
+    const completedToday = Boolean(todayWorkout) && !isUpgradingToVerified;
     const resolvedGymName = gymName || prefs.gymLocation?.name || 'Local Gym';
 
     if (
       existingSession.isDwelling &&
       existingSession.enteredAt &&
-      (!isUpgradingToPartnered || existingSession.gymName === resolvedGymName)
+      (!isUpgradingToVerified || existingSession.gymName === resolvedGymName)
     ) {
       // Already dwelling — keep original enteredAt timestamp!
       const updated: DwellSessionState = {
@@ -302,8 +327,8 @@ export const storageService = {
 
     // If re-entering the same gym type later on the same day after already completing a workout,
     // backdate enteredAt by prior duration so cumulative gym time for today continues seamlessly.
-    // When upgrading from a custom gym to a partnered gym on the same day, start a fresh 15m dwell.
-    const priorMinutesToday = isUpgradingToPartnered ? 0 : todayWorkout ? todayWorkout.durationMinutes : 0;
+    // When upgrading from a custom gym to a verified gym on the same day, start a fresh 15m dwell.
+    const priorMinutesToday = isUpgradingToVerified ? 0 : todayWorkout ? todayWorkout.durationMinutes : 0;
     const effectiveEnteredAt = new Date(Date.now() - priorMinutesToday * 60 * 1000).toISOString();
 
     const newSession: DwellSessionState = {
@@ -341,8 +366,8 @@ export const storageService = {
 
     const todayWorkout = workouts.find((w) => w.dateString === today);
     const alreadyDoneToday = Boolean(todayWorkout);
-    const isPartnered = Boolean(prefs.gymLocation?.isPartnered);
-    const canUpgradeToday = Boolean(todayWorkout && !todayWorkout.isPartnered && isPartnered);
+    const isVerified = Boolean(prefs.gymLocation?.isVerified);
+    const canUpgradeToday = Boolean(todayWorkout && !todayWorkout.isVerified && isVerified);
 
     // If not currently inside the gym perimeter
     if (!session.isDwelling || !session.enteredAt) {
@@ -376,10 +401,10 @@ export const storageService = {
     const sessionWorkout = workouts.find((w) => w.dateString === sessionDate);
     const alreadyDoneForSession = Boolean(sessionWorkout);
     const canUpgradeForSession = Boolean(
-      sessionWorkout && !sessionWorkout.isPartnered && isPartnered
+      sessionWorkout && !sessionWorkout.isVerified && isVerified
     );
 
-    // Guard: if upgrading from a custom gym workout to a partnered gym, do not credit a stale
+    // Guard: if upgrading from a custom gym workout to a verified gym, do not credit a stale
     // dwell session that was started at a different (custom) gym.
     if (
       canUpgradeForSession &&
@@ -427,7 +452,7 @@ export const storageService = {
           arrivalDate,
           cappedMins,
           profile.id,
-          isPartnered,
+          isVerified,
           profile.createdAt
         );
         latestStreak = result.updatedState;
@@ -471,7 +496,7 @@ export const storageService = {
       };
     }
 
-    // Case 1: Reached 15-minute threshold for the first time in this session, or upgrading custom -> partnered
+    // Case 1: Reached 15-minute threshold for the first time in this session, or upgrading custom -> verified
     if (elapsedMins >= FIXED_DWELL_MINUTES && (!alreadyDoneForSession || canUpgradeForSession)) {
       const gymName = session.gymName || prefs.gymLocation?.name || 'Local Gym';
       const result = recordCompletedWorkout(
@@ -482,7 +507,7 @@ export const storageService = {
         arrivalDate,
         elapsedMins,
         profile.id,
-        isPartnered,
+        isVerified,
         profile.createdAt
       );
 
@@ -509,7 +534,7 @@ export const storageService = {
       };
     }
 
-    // Case 2: Already completed this session's 15-min check-in (and not upgrading to partnered), still at the gym
+    // Case 2: Already completed this session's 15-min check-in (and not upgrading to verified), still at the gym
     // Continue incrementing minutesDwelling and updating the session workout's durationMinutes!
     if (alreadyDoneForSession && !canUpgradeForSession) {
       let workoutsUpdated = false;

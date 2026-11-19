@@ -26,7 +26,7 @@ import {
   calculateDistanceMeters,
 } from '../../services/locationService';
 import { AppTheme } from '../../constants/theme';
-import { PARTNERED_GYMS, PartneredGym } from '../../constants/partneredGyms';
+import { VERIFIED_GYMS, VerifiedGym } from '../../constants/verifiedGyms';
 import { getIsoWeekId } from '../../utils/dateUtils';
 import { FIXED_DWELL_MINUTES, DEFAULT_GEOFENCE_RADIUS_METERS } from '../../types/fitness';
 
@@ -72,15 +72,15 @@ export default function GoalSetupScreen() {
   const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const pendingScrollToBottomRef = useRef(false);
 
-  const initialMatchedPartner = preferences.gymLocation
-    ? PARTNERED_GYMS.find(
+  const initialMatchedVerified = preferences.gymLocation
+    ? VERIFIED_GYMS.find(
       (g) =>
         g.id === preferences.gymLocation?.id ||
         g.name.toLowerCase() === preferences.gymLocation?.name.toLowerCase()
     ) || null
     : null;
 
-  const isSavedCustomGym = Boolean(preferences.gymLocation && !initialMatchedPartner);
+  const isSavedCustomGym = Boolean(preferences.gymLocation && !initialMatchedVerified);
 
   const [selectedGoal, setSelectedGoal] = useState<number>(preferences.weeklyGoal);
   const [gymMode, setGymMode] = useState<GymSetupMode>(
@@ -89,13 +89,13 @@ export default function GoalSetupScreen() {
 
   // State for "Add Existing Gym"
   const [searchQuery, setSearchQuery] = useState<string>(
-    initialMatchedPartner ? initialMatchedPartner.name : ''
+    initialMatchedVerified ? initialMatchedVerified.name : ''
   );
-  const [selectedPartnerGym, setSelectedPartnerGym] = useState<PartneredGym | null>(
-    initialMatchedPartner
+  const [selectedVerifiedGym, setSelectedVerifiedGym] = useState<VerifiedGym | null>(
+    initialMatchedVerified
   );
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(true);
-  const [existingGymsResults, setExistingGymsResults] = useState<PartneredGym[]>(PARTNERED_GYMS);
+  const [existingGymsResults, setExistingGymsResults] = useState<VerifiedGym[]>(VERIFIED_GYMS);
   const [isSearchingGyms, setIsSearchingGyms] = useState(false);
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [reportModalVisible, setReportModalVisible] = useState(false);
@@ -108,7 +108,7 @@ export default function GoalSetupScreen() {
   );
   const [submittingReport, setSubmittingReport] = useState(false);
 
-  // State for "Add Custom Gym" (never pre-filled from partnered gyms)
+  // State for "Add Custom Gym" (never pre-filled from verified gyms)
   const [gymName, setGymName] = useState<string>(
     isSavedCustomGym && preferences.gymLocation ? preferences.gymLocation.name : ''
   );
@@ -134,18 +134,18 @@ export default function GoalSetupScreen() {
   useEffect(() => {
     if (!preferences.gymLocation) return;
 
-    const matchedPartner = PARTNERED_GYMS.find(
+    const matchedVerified = VERIFIED_GYMS.find(
       (g) =>
         g.id === preferences.gymLocation?.id ||
         g.name.toLowerCase() === preferences.gymLocation?.name.toLowerCase()
     );
 
-    if (matchedPartner) {
+    if (matchedVerified) {
       setGymMode('existing');
-      setSelectedPartnerGym(matchedPartner);
-      setSearchQuery(matchedPartner.name);
-    } else if (preferences.gymLocation.isPartnered) {
-      const savedExisting: PartneredGym = {
+      setSelectedVerifiedGym(matchedVerified);
+      setSearchQuery(matchedVerified.name);
+    } else if (preferences.gymLocation.isVerified) {
+      const savedExisting: VerifiedGym = {
         id: preferences.gymLocation.id,
         name: preferences.gymLocation.name,
         address: preferences.gymLocation.address || '',
@@ -153,7 +153,7 @@ export default function GoalSetupScreen() {
         longitude: preferences.gymLocation.longitude,
       };
       setGymMode('existing');
-      setSelectedPartnerGym(savedExisting);
+      setSelectedVerifiedGym(savedExisting);
       setSearchQuery(savedExisting.name);
     } else {
       setGymMode('custom');
@@ -295,28 +295,28 @@ export default function GoalSetupScreen() {
     };
   }, [gymMode, searchQuery, userCoords, searchExistingGyms]);
 
-  const filteredPartnerGyms = existingGymsResults;
+  const filteredVerifiedGyms = existingGymsResults;
 
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
     setDropdownOpen(true);
     if (
-      selectedPartnerGym &&
-      text.trim().toLowerCase() !== selectedPartnerGym.name.toLowerCase()
+      selectedVerifiedGym &&
+      text.trim().toLowerCase() !== selectedVerifiedGym.name.toLowerCase()
     ) {
-      setSelectedPartnerGym(null);
+      setSelectedVerifiedGym(null);
     }
   };
 
-  const handleSelectPartnerGym = (gym: PartneredGym) => {
-    setSelectedPartnerGym(gym);
+  const handleSelectVerifiedGym = (gym: VerifiedGym) => {
+    setSelectedVerifiedGym(gym);
     setSearchQuery(gym.name);
     setDropdownOpen(false);
   };
 
   const openReportModal = () => {
-    const prefillName = selectedPartnerGym?.name || searchQuery.trim();
-    setReportType(selectedPartnerGym ? 'moved' : 'missing');
+    const prefillName = selectedVerifiedGym?.name || searchQuery.trim();
+    setReportType(selectedVerifiedGym ? 'moved' : 'missing');
     setReportGymName(prefillName);
     setReportAddress('');
     setReportNotes('');
@@ -345,7 +345,7 @@ export default function GoalSetupScreen() {
     setSubmittingReport(true);
     try {
       const ok = await submitGymReport({
-        gymId: selectedPartnerGym?.id || null,
+        gymId: selectedVerifiedGym?.id || null,
         gymName: reportGymName.trim(),
         reportType,
         suggestedAddress: reportAddress.trim(),
@@ -370,11 +370,11 @@ export default function GoalSetupScreen() {
   const handleSaveGym = async () => {
     if (gymMode === 'existing') {
       const gymToSave =
-        selectedPartnerGym ||
+        selectedVerifiedGym ||
         existingGymsResults.find(
           (g) => g.name.toLowerCase() === searchQuery.trim().toLowerCase()
         ) ||
-        PARTNERED_GYMS.find(
+        VERIFIED_GYMS.find(
           (g) => g.name.toLowerCase() === searchQuery.trim().toLowerCase()
         );
 
@@ -390,7 +390,7 @@ export default function GoalSetupScreen() {
         id: gymToSave.id,
         name: gymToSave.name,
         address: gymToSave.address,
-        isPartnered: true,
+        isVerified: true,
         latitude: gymToSave.latitude,
         longitude: gymToSave.longitude,
         radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Default 150m
@@ -417,11 +417,11 @@ export default function GoalSetupScreen() {
 
       const newGym = {
         id:
-          preferences.gymLocation && !preferences.gymLocation.isPartnered
+          preferences.gymLocation && !preferences.gymLocation.isVerified
             ? preferences.gymLocation.id
             : `gym_${Date.now()}`,
         name: trimmedName,
-        isPartnered: false,
+        isVerified: false,
         isManual: true,
         latitude: 0,
         longitude: 0,
@@ -447,11 +447,11 @@ export default function GoalSetupScreen() {
 
     const newGym = {
       id:
-        preferences.gymLocation && !preferences.gymLocation.isPartnered
+        preferences.gymLocation && !preferences.gymLocation.isVerified
           ? preferences.gymLocation.id
           : `gym_${Date.now()}`,
       name: gymName.trim() || 'My Gym',
-      isPartnered: false,
+      isVerified: false,
       latitude: parsedLat,
       longitude: parsedLon,
       radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Default 150m
@@ -489,7 +489,7 @@ export default function GoalSetupScreen() {
             <Text style={styles.sectionTitle}>Gym Location</Text>
           </View>
           <Text style={styles.sectionDesc}>
-            Choose an existing partnered gym or add a custom gym. The app will automatically detect your arrival and verify your workout when you stay for {FIXED_DWELL_MINUTES} minutes.
+            Choose a verified gym or add a custom gym. The app will automatically detect your arrival and verify your workout when you stay for {FIXED_DWELL_MINUTES} minutes.
           </Text>
 
           {/* 2 Options: Add Existing Gym vs Add Custom Gym */}
@@ -563,7 +563,7 @@ export default function GoalSetupScreen() {
                   <TouchableOpacity
                     onPress={() => {
                       setSearchQuery('');
-                      setSelectedPartnerGym(null);
+                      setSelectedVerifiedGym(null);
                       setDropdownOpen(true);
                     }}
                     style={styles.clearSearchBtn}
@@ -586,9 +586,9 @@ export default function GoalSetupScreen() {
               {/* Dropdown of matching existing gyms (up to 3 at a time) */}
               {dropdownOpen && (
                 <View style={styles.dropdownList}>
-                  {filteredPartnerGyms.length > 0 ? (
-                    filteredPartnerGyms.slice(0, 3).map((gym) => {
-                      const isSelected = selectedPartnerGym?.id === gym.id;
+                  {filteredVerifiedGyms.length > 0 ? (
+                    filteredVerifiedGyms.slice(0, 3).map((gym) => {
+                      const isSelected = selectedVerifiedGym?.id === gym.id;
                       return (
                         <TouchableOpacity
                           key={gym.id}
@@ -596,7 +596,7 @@ export default function GoalSetupScreen() {
                             styles.dropdownItem,
                             isSelected && styles.dropdownItemSelected,
                           ]}
-                          onPress={() => handleSelectPartnerGym(gym)}
+                          onPress={() => handleSelectVerifiedGym(gym)}
                           activeOpacity={0.8}
                         >
                           <View style={styles.dropdownItemIcon}>
@@ -643,16 +643,16 @@ export default function GoalSetupScreen() {
                 </View>
               )}
 
-              {/* Selected Partnered Gym Summary (Coordinates hidden & locked) */}
-              {selectedPartnerGym && (
-                <View style={styles.selectedPartnerCard}>
+              {/* Selected Verified Gym Summary (Coordinates hidden & locked) */}
+              {selectedVerifiedGym && (
+                <View style={styles.selectedVerifiedCard}>
                   <Ionicons name="checkmark-circle" size={22} color={theme.successLight} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.selectedPartnerName}>
-                      {selectedPartnerGym.name}
+                    <Text style={styles.selectedVerifiedName}>
+                      {selectedVerifiedGym.name}
                     </Text>
-                    <Text style={styles.selectedPartnerAddress}>
-                      {selectedPartnerGym.address}
+                    <Text style={styles.selectedVerifiedAddress}>
+                      {selectedVerifiedGym.address}
                     </Text>
                   </View>
                 </View>
@@ -1282,7 +1282,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 13,
     color: theme.textTertiary,
   },
-  selectedPartnerCard: {
+  selectedVerifiedCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -1293,12 +1293,12 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.35)',
   },
-  selectedPartnerName: {
+  selectedVerifiedName: {
     fontSize: 14,
     fontWeight: '700',
     color: theme.textPrimary,
   },
-  selectedPartnerAddress: {
+  selectedVerifiedAddress: {
     fontSize: 12,
     color: theme.textSecondary,
     marginTop: 2,

@@ -94,7 +94,7 @@ async function main() {
 
   // Include curated Axioms Fitness first
   lines.push(
-    `INSERT INTO public.gyms (id, name, address, city, state, postal_code, latitude, longitude, is_partnered, source) VALUES`,
+    `INSERT INTO public.gyms (id, name, address, city, state, postal_code, latitude, longitude, is_verified, source) VALUES`,
     `('partner_axioms_fitness_anaheim', 'Axioms Fitness', '5628 E La Palma Ave, Anaheim, CA 92807', 'Anaheim', 'CA', '92807', 33.85877397760535, -117.79206834908676, TRUE, 'curated')`,
     `ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, address = EXCLUDED.address, latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude;`,
     ''
@@ -104,7 +104,7 @@ async function main() {
   for (let i = 0; i < gyms.length; i += CHUNK) {
     const batch = gyms.slice(i, i + CHUNK);
     lines.push(
-      'INSERT INTO public.gyms (id, name, address, city, state, postal_code, latitude, longitude, is_partnered, source) VALUES'
+      'INSERT INTO public.gyms (id, name, address, city, state, postal_code, latitude, longitude, is_verified, source) VALUES'
     );
     const values = batch.map(
       (g) =>

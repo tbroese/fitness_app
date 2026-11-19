@@ -33,7 +33,7 @@ function parseSqlValues(content) {
       postal_code: unesc(match[6]),
       latitude: parseFloat(match[7]),
       longitude: parseFloat(match[8]),
-      is_partnered: match[9] === 'TRUE',
+      is_verified: match[9] === 'TRUE',
       source: match[10],
     });
   }
@@ -115,7 +115,7 @@ async function main() {
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK);
     lines.push(
-      'INSERT INTO public.gyms (id, name, address, city, state, postal_code, latitude, longitude, is_partnered, source) VALUES'
+      'INSERT INTO public.gyms (id, name, address, city, state, postal_code, latitude, longitude, is_verified, source) VALUES'
     );
     const values = chunk.map(
       (g) =>
@@ -123,7 +123,7 @@ async function main() {
           g.city
         )}, ${escapeSql(g.state)}, ${escapeSql(g.postal_code)}, ${g.latitude}, ${
           g.longitude
-        }, ${g.is_partnered ? 'TRUE' : 'FALSE'}, ${escapeSql(g.source)})`
+        }, ${g.is_verified ? 'TRUE' : 'FALSE'}, ${escapeSql(g.source)})`
     );
     lines.push(values.join(',\n'));
     lines.push(

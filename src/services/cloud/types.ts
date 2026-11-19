@@ -1,5 +1,5 @@
 import { AuthProviderType, UserGender, WorkoutSession } from '../../types/fitness';
-import { PartneredGym } from '../../constants/partneredGyms';
+import { VerifiedGym } from '../../constants/verifiedGyms';
 
 export interface RemoteLeaderboardUser {
   id: string;
@@ -11,11 +11,11 @@ export interface RemoteLeaderboardUser {
   age?: number | null;
   gymId: string | null;
   gymName: string;
-  isPartnered: boolean;
+  isVerified: boolean;
   currentStreak: number;
   bestStreak: number;
-  partnerStreak: number;
-  bestPartnerStreak: number;
+  verifiedStreak: number;
+  bestVerifiedStreak: number;
   totalGymTimeMinutes: number;
   workoutsCount: number;
   weeklyGoal: number;
@@ -36,11 +36,11 @@ export interface UserCloudSyncData {
   age?: number | null;
   gymId: string | null;
   gymName: string | null;
-  isPartnered?: boolean;
+  isVerified?: boolean;
   currentStreak: number;
   bestStreak: number;
-  partnerStreak?: number;
-  bestPartnerStreak?: number;
+  verifiedStreak?: number;
+  bestVerifiedStreak?: number;
   totalGymTimeMinutes: number;
   workoutsCount: number;
   weeklyGoal: number;
@@ -142,7 +142,7 @@ export interface CloudDatabaseProvider {
     query: string,
     coords?: { latitude: number; longitude: number } | null,
     limit?: number
-  ): Promise<PartneredGym[]>;
+  ): Promise<VerifiedGym[]>;
   searchUsers(query: string, currentUserId: string): Promise<RemoteLeaderboardUser[]>;
   fetchFriendships(currentUserId: string): Promise<FriendshipsOverview>;
   sendFriendRequest(

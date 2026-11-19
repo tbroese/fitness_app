@@ -36,15 +36,15 @@ interface LeaderboardEntry {
   userTag: string;
   isCurrentUser: boolean;
   gymName: string;
-  isPartnered: boolean;
+  isVerified: boolean;
   gender?: UserGender;
   age?: number | null;
   currentStreak: number;
   bestStreak: number;
   personalCurrentStreak: number;
   personalBestStreak: number;
-  partnerCurrentStreak: number;
-  partnerBestStreak: number;
+  verifiedCurrentStreak: number;
+  verifiedBestStreak: number;
   workoutsCount: number;
   weeklyGoal: number;
   totalGymTimeMinutes: number;
@@ -200,26 +200,26 @@ export default function LeaderboardScreen() {
       const squat = userProfile.squatPrKg ?? 0;
       const bench = userProfile.benchPrKg ?? 0;
       const deadlift = userProfile.deadliftPrKg ?? 0;
-      const usePartnerStreak = selectedCategory !== 'friends';
+      const useVerifiedStreak = selectedCategory !== 'friends';
       return {
         id: userProfile.id || 'current-user',
         name: userProfile.fullName || 'You',
         userTag: userProfile.userTag || '4821',
         isCurrentUser: true,
         gymName: preferences.gymLocation?.name || 'No Gym Selected',
-        isPartnered: Boolean(preferences.gymLocation?.isPartnered),
+        isVerified: Boolean(preferences.gymLocation?.isVerified),
         gender: userProfile.gender ?? null,
         age: userProfile.age ?? null,
-        currentStreak: usePartnerStreak
-          ? streakState.partnerStreak ?? 0
+        currentStreak: useVerifiedStreak
+          ? streakState.verifiedStreak ?? 0
           : streakState.currentStreak,
-        bestStreak: usePartnerStreak
-          ? streakState.bestPartnerStreak ?? 0
+        bestStreak: useVerifiedStreak
+          ? streakState.bestVerifiedStreak ?? 0
           : streakState.bestStreak,
         personalCurrentStreak: streakState.currentStreak,
         personalBestStreak: streakState.bestStreak,
-        partnerCurrentStreak: streakState.partnerStreak ?? 0,
-        partnerBestStreak: streakState.bestPartnerStreak ?? 0,
+        verifiedCurrentStreak: streakState.verifiedStreak ?? 0,
+        verifiedBestStreak: streakState.bestVerifiedStreak ?? 0,
         workoutsCount: workouts.length,
         weeklyGoal: preferences.weeklyGoal,
         totalGymTimeMinutes,
@@ -267,10 +267,10 @@ export default function LeaderboardScreen() {
       .filter((u) => u.id !== currentUserEntry.id)
       .filter((u) => {
         if (selectedCategory === 'global' || selectedCategory === 'gym') {
-          if (!u.isPartnered) return false;
+          if (!u.isVerified) return false;
         }
         if (selectedCategory === 'gym') {
-          if (!preferences.gymLocation?.name || !preferences.gymLocation?.isPartnered) {
+          if (!preferences.gymLocation?.name || !preferences.gymLocation?.isVerified) {
             return false;
           }
           return (
@@ -284,22 +284,22 @@ export default function LeaderboardScreen() {
         const squat = u.squatPrKg ?? 0;
         const bench = u.benchPrKg ?? 0;
         const deadlift = u.deadliftPrKg ?? 0;
-        const usePartnerStreak = selectedCategory !== 'friends';
+        const useVerifiedStreak = selectedCategory !== 'friends';
         return {
           id: u.id,
           name: u.fullName || 'Athlete',
           userTag: u.userTag || '0000',
           isCurrentUser: false,
           gymName: u.gymName || 'No Gym Selected',
-          isPartnered: Boolean(u.isPartnered),
+          isVerified: Boolean(u.isVerified),
           gender: u.gender ?? null,
           age: u.age ?? null,
-          currentStreak: usePartnerStreak ? u.partnerStreak ?? 0 : u.currentStreak,
-          bestStreak: usePartnerStreak ? u.bestPartnerStreak ?? 0 : u.bestStreak,
+          currentStreak: useVerifiedStreak ? u.verifiedStreak ?? 0 : u.currentStreak,
+          bestStreak: useVerifiedStreak ? u.bestVerifiedStreak ?? 0 : u.bestStreak,
           personalCurrentStreak: u.currentStreak,
           personalBestStreak: u.bestStreak,
-          partnerCurrentStreak: u.partnerStreak ?? 0,
-          partnerBestStreak: u.bestPartnerStreak ?? 0,
+          verifiedCurrentStreak: u.verifiedStreak ?? 0,
+          verifiedBestStreak: u.bestVerifiedStreak ?? 0,
           workoutsCount: u.workoutsCount ?? 0,
           weeklyGoal: u.weeklyGoal ?? 2,
           totalGymTimeMinutes: u.totalGymTimeMinutes,
@@ -311,7 +311,7 @@ export default function LeaderboardScreen() {
       });
 
     const includeCurrentUser =
-      selectedCategory === 'friends' || currentUserEntry.isPartnered;
+      selectedCategory === 'friends' || currentUserEntry.isVerified;
     const rawList = includeCurrentUser
       ? [currentUserEntry, ...otherEntries]
       : [...otherEntries];
@@ -504,7 +504,7 @@ export default function LeaderboardScreen() {
 
           <Text style={styles.gymSubtitle} numberOfLines={1}>
             {item.gymName}
-            {!item.isPartnered && item.gymName !== 'No Gym Selected' ? ' • Custom' : ''}
+            {!item.isVerified && item.gymName !== 'No Gym Selected' ? ' • Custom' : ''}
           </Text>
 
           <View style={styles.miniStatsRow}>
@@ -795,11 +795,11 @@ export default function LeaderboardScreen() {
         </View>
 
         {/* Custom Gym Notice on Global & Gym Tabs */}
-        {selectedCategory !== 'friends' && !currentUserEntry.isPartnered && (
+        {selectedCategory !== 'friends' && !currentUserEntry.isVerified && (
           <View style={styles.customGymNotice}>
             <Ionicons name="shield-outline" size={16} color={theme.warning} />
             <Text style={styles.customGymNoticeText}>
-              Custom gyms only count on your Personal & Friends leaderboards. Select a partnered gym in Goal & Gym to compete here.
+              Custom gyms only count on your Personal & Friends leaderboards. Select a verified gym in Goal & Gym to compete here.
             </Text>
           </View>
         )}
@@ -999,10 +999,10 @@ export default function LeaderboardScreen() {
                   </View>
                   <Text style={styles.detailGymText} numberOfLines={1}>
                     {selectedEntry.entry.gymName}
-                    {!selectedEntry.entry.isPartnered &&
+                    {!selectedEntry.entry.isVerified &&
                     selectedEntry.entry.gymName !== 'No Gym Selected'
                       ? ' • Custom Gym'
-                      : selectedEntry.entry.isPartnered
+                      : selectedEntry.entry.isVerified
                       ? ' • Verified Gym'
                       : ''}
                   </Text>
@@ -1049,10 +1049,10 @@ export default function LeaderboardScreen() {
               <View style={styles.detailGrid}>
                 <View style={styles.detailStatBox}>
                   <Text style={styles.detailStatValue}>
-                    🔥 {selectedEntry.entry.partnerCurrentStreak}
+                    🔥 {selectedEntry.entry.verifiedCurrentStreak}
                   </Text>
                   <Text style={styles.detailStatLabel}>
-                    Verified Streak (Best {selectedEntry.entry.partnerBestStreak})
+                    Verified Streak (Best {selectedEntry.entry.verifiedBestStreak})
                   </Text>
                 </View>
                 <View style={styles.detailStatBox}>

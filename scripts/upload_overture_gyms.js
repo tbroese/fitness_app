@@ -39,7 +39,7 @@ function parseSqlValues(content) {
       postal_code: unesc(m[6]),
       latitude: parseFloat(m[7]),
       longitude: parseFloat(m[8]),
-      is_partnered: m[9] === 'TRUE',
+      is_verified: m[9] === 'TRUE',
       source: m[10],
     });
   }

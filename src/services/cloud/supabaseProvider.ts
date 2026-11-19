@@ -6,6 +6,7 @@ import { PartneredGym } from '../../constants/partneredGyms';
 import { calculateDistanceMeters } from '../locationService';
 import {
   AuthSession,
+  BugReportInput,
   CloudDatabaseProvider,
   FetchLeaderboardParams,
   FriendRequestWithUser,
@@ -830,6 +831,37 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
       return res.ok;
     } catch (error) {
       console.warn('[Supabase] Failed to submit gym report:', error);
+      return false;
+    }
+  }
+
+  async submitBugReport(input: BugReportInput): Promise<boolean> {
+    if (!this.isConfigured() || !input.title.trim() || !input.description.trim()) {
+      return false;
+    }
+
+    try {
+      await this.ensureFreshSession();
+      const payload = {
+        id: `brep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        reporter_user_id: input.reporterUserId || null,
+        auth_user_id: this.authSession?.authUserId || null,
+        category: input.category,
+        title: input.title.trim(),
+        description: input.description.trim(),
+        app_version: input.appVersion || null,
+        platform: input.platform || null,
+        status: 'pending',
+      };
+
+      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/bug_reports`, {
+        method: 'POST',
+        headers: this.getHeaders({ Prefer: 'return=minimal' }),
+        body: JSON.stringify(payload),
+      });
+      return res.ok;
+    } catch (error) {
+      console.warn('[Supabase] Failed to submit bug report:', error);
       return false;
     }
   }

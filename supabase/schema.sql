@@ -142,12 +142,30 @@ CREATE TABLE IF NOT EXISTS public.gym_reports (
 CREATE INDEX IF NOT EXISTS idx_gym_reports_status
   ON public.gym_reports (status, created_at DESC);
 
+-- 6. User-Submitted Bug Reports Table
+CREATE TABLE IF NOT EXISTS public.bug_reports (
+  id TEXT PRIMARY KEY,
+  reporter_user_id TEXT,
+  auth_user_id TEXT,
+  category TEXT NOT NULL CHECK (category IN ('ui', 'location', 'sync', 'other')),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  app_version TEXT,
+  platform TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'dismissed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bug_reports_status
+  ON public.bug_reports (status, created_at DESC);
+
 -- ============================================================================
 -- Supabase Row Level Security (RLS) & Table Grants (Production)
 -- ============================================================================
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT SELECT ON public.gyms TO anon, authenticated;
 GRANT INSERT ON public.gym_reports TO authenticated;
+GRANT INSERT ON public.bug_reports TO authenticated;
 GRANT SELECT ON public.leaderboard_users TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.leaderboard_users TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_workouts TO authenticated;
@@ -169,6 +187,14 @@ ALTER TABLE public.gym_reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can submit gym reports" ON public.gym_reports;
 CREATE POLICY "Users can submit gym reports"
   ON public.gym_reports FOR INSERT
+  TO authenticated
+  WITH CHECK ((select auth.uid())::text = auth_user_id);
+
+ALTER TABLE public.bug_reports ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can submit bug reports" ON public.bug_reports;
+CREATE POLICY "Users can submit bug reports"
+  ON public.bug_reports FOR INSERT
   TO authenticated
   WITH CHECK ((select auth.uid())::text = auth_user_id);
 

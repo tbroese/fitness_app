@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, AppStateStatus, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
+import { PARTNERED_GYMS, PartneredGym } from '../constants/partneredGyms';
 import {
   UserProfile,
   UserPreferences,
@@ -95,6 +96,10 @@ interface FitnessContextType {
   fetchLeaderboardEntries: (
     category: 'global' | 'gym' | 'friends'
   ) => Promise<RemoteLeaderboardUser[]>;
+  searchExistingGyms: (
+    query: string,
+    coords?: { latitude: number; longitude: number } | null
+  ) => Promise<PartneredGym[]>;
   refreshFriendships: () => Promise<FriendshipsOverview>;
   searchUsersForFriend: (query: string) => Promise<RemoteLeaderboardUser[]>;
   sendFriendRequestToUser: (
@@ -235,6 +240,34 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         gymId: gym?.id || null,
         gymName: gym?.name || null,
       });
+    },
+    []
+  );
+
+  const searchExistingGyms = useCallback(
+    async (
+      query: string,
+      coords?: { latitude: number; longitude: number } | null
+    ): Promise<PartneredGym[]> => {
+      const q = query.trim().toLowerCase();
+      const localMatches = PARTNERED_GYMS.filter(
+        (g) =>
+          !q ||
+          g.name.toLowerCase().includes(q) ||
+          g.address.toLowerCase().includes(q)
+      );
+
+      if (!cloudDatabase.isConfigured()) {
+        return localMatches;
+      }
+
+      const remote = await cloudDatabase.searchGyms(query, coords, 25);
+      if (remote.length === 0) {
+        return localMatches;
+      }
+
+      const seen = new Set(remote.map((g) => g.id));
+      return [...localMatches.filter((g) => !seen.has(g.id)), ...remote];
     },
     []
   );
@@ -1151,6 +1184,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         endManualGymSession,
         syncToCloud,
         fetchLeaderboardEntries,
+        searchExistingGyms,
         refreshFriendships,
         searchUsersForFriend,
         sendFriendRequestToUser,

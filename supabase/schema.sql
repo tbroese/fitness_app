@@ -94,10 +94,40 @@ CREATE INDEX IF NOT EXISTS idx_friend_requests_requester_status
 CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver_status
   ON public.friend_requests (receiver_id, status);
 
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- 4. Gyms Directory Table (CA / US Gyms)
+CREATE TABLE IF NOT EXISTS public.gyms (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  address TEXT,
+  city TEXT,
+  state TEXT,
+  postal_code TEXT,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
+  is_partnered BOOLEAN NOT NULL DEFAULT TRUE,
+  source TEXT NOT NULL DEFAULT 'osm',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gyms_name_trgm
+  ON public.gyms USING gin (name gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_gyms_address_trgm
+  ON public.gyms USING gin (address gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_gyms_state
+  ON public.gyms (state);
+
+CREATE INDEX IF NOT EXISTS idx_gyms_lat_lon
+  ON public.gyms (latitude, longitude);
+
 -- ============================================================================
 -- Supabase Row Level Security (RLS) & Table Grants (Production)
 -- ============================================================================
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT ON public.gyms TO anon, authenticated;
 GRANT SELECT ON public.leaderboard_users TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.leaderboard_users TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_workouts TO authenticated;
@@ -106,6 +136,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.friend_requests TO authenticated;
 ALTER TABLE public.leaderboard_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_workouts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.friend_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gyms ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Gyms are publicly readable" ON public.gyms;
+CREATE POLICY "Gyms are publicly readable"
+  ON public.gyms FOR SELECT
+  TO anon, authenticated
+  USING (true);
 
 -- leaderboard_users: public leaderboard reads; owners can insert/update/delete only their own row
 DROP POLICY IF EXISTS "Allow public read leaderboard_users" ON public.leaderboard_users;

@@ -2,6 +2,8 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { SUPABASE_CONFIG } from '../../constants/config';
 import { AuthProviderType, UserGender } from '../../types/fitness';
+import { PartneredGym } from '../../constants/partneredGyms';
+import { calculateDistanceMeters } from '../locationService';
 import {
   AuthSession,
   CloudDatabaseProvider,
@@ -424,6 +426,87 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
       return rows.map(mapRowToLeaderboardUser);
     } catch (error) {
       console.warn('[Supabase] Error fetching leaderboard:', error);
+      return [];
+    }
+  }
+
+  async searchGyms(
+    query: string,
+    coords?: { latitude: number; longitude: number } | null,
+    limit: number = 25
+  ): Promise<PartneredGym[]> {
+    if (!this.isConfigured()) return [];
+
+    try {
+      const clean = query.trim().replace(/[(),*]/g, '');
+      const parts: string[] = [
+        'select=id,name,address,city,state,postal_code,latitude,longitude',
+      ];
+
+      if (clean.length > 0) {
+        const pattern = `*${clean}*`;
+        parts.push(
+          `or=(name.ilike.${encodeURIComponent(pattern)},address.ilike.${encodeURIComponent(
+            pattern
+          )},city.ilike.${encodeURIComponent(pattern)})`
+        );
+        parts.push('order=name.asc');
+        parts.push(`limit=${coords ? Math.max(limit, 50) : limit}`);
+      } else if (coords) {
+        const delta = 0.35; // ~38 km bounding box
+        parts.push(`latitude=gte.${(coords.latitude - delta).toFixed(5)}`);
+        parts.push(`latitude=lte.${(coords.latitude + delta).toFixed(5)}`);
+        parts.push(`longitude=gte.${(coords.longitude - delta).toFixed(5)}`);
+        parts.push(`longitude=lte.${(coords.longitude + delta).toFixed(5)}`);
+        parts.push(`limit=${Math.max(limit, 50)}`);
+      } else {
+        parts.push('order=name.asc');
+        parts.push(`limit=${limit}`);
+      }
+
+      const url = `${SUPABASE_CONFIG.url}/rest/v1/gyms?${parts.join('&')}`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!res.ok) {
+        return [];
+      }
+
+      const rows: Array<{
+        id: string;
+        name: string;
+        address?: string | null;
+        city?: string | null;
+        state?: string | null;
+        postal_code?: string | null;
+        latitude: number;
+        longitude: number;
+      }> = await res.json();
+
+      const mapped: PartneredGym[] = rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        address:
+          row.address ||
+          [row.city, row.state, row.postal_code].filter(Boolean).join(', ') ||
+          'California',
+        latitude: row.latitude,
+        longitude: row.longitude,
+      }));
+
+      if (coords) {
+        mapped.sort(
+          (a, b) =>
+            calculateDistanceMeters(coords.latitude, coords.longitude, a.latitude, a.longitude) -
+            calculateDistanceMeters(coords.latitude, coords.longitude, b.latitude, b.longitude)
+        );
+      }
+
+      return mapped.slice(0, limit);
+    } catch (error) {
+      console.warn('[Supabase] Error searching gyms:', error);
       return [];
     }
   }

@@ -1,4 +1,5 @@
 import { AuthProviderType, UserGender, WorkoutSession } from '../../types/fitness';
+import { PartneredGym } from '../../constants/partneredGyms';
 
 export interface RemoteLeaderboardUser {
   id: string;
@@ -113,6 +114,11 @@ export interface CloudDatabaseProvider {
     syncedWorkoutIds: string[];
   }>;
   fetchLeaderboard(params: FetchLeaderboardParams): Promise<RemoteLeaderboardUser[]>;
+  searchGyms(
+    query: string,
+    coords?: { latitude: number; longitude: number } | null,
+    limit?: number
+  ): Promise<PartneredGym[]>;
   searchUsers(query: string, currentUserId: string): Promise<RemoteLeaderboardUser[]>;
   fetchFriendships(currentUserId: string): Promise<FriendshipsOverview>;
   sendFriendRequest(

@@ -18,6 +18,7 @@ import {
   getCurrentCoordinates,
   requestLocationPermissions,
   setupGymGeofence,
+  calculateDistanceMeters,
 } from '../../services/locationService';
 import { theme } from '../../constants/theme';
 import { PARTNERED_GYMS, PartneredGym } from '../../constants/partneredGyms';
@@ -35,6 +36,7 @@ export default function GoalSetupScreen() {
     updateGymLocation,
     setAutoDetectGym,
     requestAutoTrackingPermission,
+    searchExistingGyms,
   } = useFitness();
 
   const [bgLocationModalVisible, setBgLocationModalVisible] = useState(false);
@@ -80,6 +82,9 @@ export default function GoalSetupScreen() {
     initialMatchedPartner
   );
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(true);
+  const [existingGymsResults, setExistingGymsResults] = useState<PartneredGym[]>(PARTNERED_GYMS);
+  const [isSearchingGyms, setIsSearchingGyms] = useState(false);
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
 
   // State for "Add Custom Gym" (never pre-filled from partnered gyms)
   const [gymName, setGymName] = useState<string>(
@@ -117,6 +122,17 @@ export default function GoalSetupScreen() {
       setGymMode('existing');
       setSelectedPartnerGym(matchedPartner);
       setSearchQuery(matchedPartner.name);
+    } else if (preferences.gymLocation.isPartnered) {
+      const savedExisting: PartneredGym = {
+        id: preferences.gymLocation.id,
+        name: preferences.gymLocation.name,
+        address: preferences.gymLocation.address || '',
+        latitude: preferences.gymLocation.latitude,
+        longitude: preferences.gymLocation.longitude,
+      };
+      setGymMode('existing');
+      setSelectedPartnerGym(savedExisting);
+      setSearchQuery(savedExisting.name);
     } else {
       setGymMode('custom');
       setGymName(preferences.gymLocation.name);
@@ -215,14 +231,44 @@ export default function GoalSetupScreen() {
     }
   };
 
-  const filteredPartnerGyms = PARTNERED_GYMS.filter((gym) => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      gym.name.toLowerCase().includes(q) ||
-      gym.address.toLowerCase().includes(q)
-    );
-  });
+  // Silently read user coordinates ONLY if foreground location permission is already granted
+  useEffect(() => {
+    if (!permissionStatus.foregroundGranted) return;
+    let cancelled = false;
+    getCurrentCoordinates().then((coords) => {
+      if (!cancelled && coords) {
+        setUserCoords(coords);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [permissionStatus.foregroundGranted]);
+
+  useEffect(() => {
+    if (gymMode !== 'existing') return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIsSearchingGyms(true);
+      try {
+        const results = await searchExistingGyms(searchQuery, userCoords);
+        if (!cancelled) {
+          setExistingGymsResults(results);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSearchingGyms(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [gymMode, searchQuery, userCoords, searchExistingGyms]);
+
+  const filteredPartnerGyms = existingGymsResults;
 
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
@@ -245,6 +291,9 @@ export default function GoalSetupScreen() {
     if (gymMode === 'existing') {
       const gymToSave =
         selectedPartnerGym ||
+        existingGymsResults.find(
+          (g) => g.name.toLowerCase() === searchQuery.trim().toLowerCase()
+        ) ||
         PARTNERED_GYMS.find(
           (g) => g.name.toLowerCase() === searchQuery.trim().toLowerCase()
         );
@@ -454,11 +503,11 @@ export default function GoalSetupScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Dropdown of matching existing gyms */}
+              {/* Dropdown of matching existing gyms (up to 3 at a time) */}
               {dropdownOpen && (
                 <View style={styles.dropdownList}>
                   {filteredPartnerGyms.length > 0 ? (
-                    filteredPartnerGyms.map((gym) => {
+                    filteredPartnerGyms.slice(0, 3).map((gym) => {
                       const isSelected = selectedPartnerGym?.id === gym.id;
                       return (
                         <TouchableOpacity
@@ -473,18 +522,31 @@ export default function GoalSetupScreen() {
                           <View style={styles.dropdownItemIcon}>
                             <Ionicons
                               name="barbell-outline"
-                              size={18}
+                              size={15}
                               color={isSelected ? theme.primaryLight : theme.textSecondary}
                             />
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.dropdownGymName}>{gym.name}</Text>
-                            <Text style={styles.dropdownGymAddress}>{gym.address}</Text>
+                            <Text style={styles.dropdownGymName} numberOfLines={1}>
+                              {gym.name}
+                            </Text>
+                            <Text style={styles.dropdownGymAddress} numberOfLines={1}>
+                              {userCoords
+                                ? `${(
+                                    calculateDistanceMeters(
+                                      userCoords.latitude,
+                                      userCoords.longitude,
+                                      gym.latitude,
+                                      gym.longitude
+                                    ) / 1609.344
+                                  ).toFixed(1)} mi away • ${gym.address}`
+                                : gym.address}
+                            </Text>
                           </View>
                           {isSelected && (
                             <Ionicons
                               name="checkmark-circle"
-                              size={20}
+                              size={18}
                               color={theme.primaryLight}
                             />
                           )}
@@ -494,7 +556,7 @@ export default function GoalSetupScreen() {
                   ) : (
                     <View style={styles.dropdownEmpty}>
                       <Text style={styles.dropdownEmptyText}>
-                        No matching existing gyms found.
+                        {isSearchingGyms ? 'Searching gyms...' : 'No matching existing gyms found.'}
                       </Text>
                     </View>
                   )}
@@ -979,9 +1041,9 @@ const styles = StyleSheet.create({
   dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: theme.cardBorder,
   },
@@ -989,22 +1051,22 @@ const styles = StyleSheet.create({
     backgroundColor: theme.primaryMuted,
   },
   dropdownItemIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: theme.cardBackgroundSubtle,
     justifyContent: 'center',
     alignItems: 'center',
   },
   dropdownGymName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: theme.textPrimary,
   },
   dropdownGymAddress: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.textSecondary,
-    marginTop: 2,
+    marginTop: 1,
   },
   dropdownEmpty: {
     padding: 16,

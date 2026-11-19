@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { GymLocation, DwellSessionState, FIXED_DWELL_MINUTES } from '../types/fitness';
+import { GymLocation, DwellSessionState, FIXED_DWELL_MINUTES, DEFAULT_GEOFENCE_RADIUS_METERS } from '../types/fitness';
 import { formatGymDuration } from '../utils/dateUtils';
 import { AppTheme } from '../constants/theme';
 import { useFitness } from '../context/FitnessContext';
@@ -262,7 +262,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
                   ? 'Check In at Gym'
                   : isInside
                   ? 'Start Gym Session (GPS-Verified)'
-                  : `Check In at Gym (Requires ≤ ${gym.radiusMeters || 300}m)`}
+                  : `Check In at Gym (Requires ≤ ${gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS}m)`}
               </Text>
             </TouchableOpacity>
           )}

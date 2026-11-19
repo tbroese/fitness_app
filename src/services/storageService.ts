@@ -61,7 +61,7 @@ export function createDefaultUserProfile(): UserProfile {
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
-  weeklyGoal: 1, // Default starts at 1 workout per week
+  weeklyGoal: 2, // Default starts at 2 workouts per week
   pendingWeeklyGoal: null,
   gymLocation: null,
   dwellDurationMinutes: FIXED_DWELL_MINUTES,
@@ -222,11 +222,12 @@ export const storageService = {
         return { ...DEFAULT_DWELL_SESSION, dateString: today };
       }
       const parsed: DwellSessionState = JSON.parse(data);
-      // If stored session is from an older day, reset completedToday flag
-      if (parsed.dateString && parsed.dateString !== today) {
+      // If stored session is from an older day and not actively dwelling, reset for today.
+      // Active dwell sessions keep their arrival enteredAt & dateString across midnight.
+      if (!parsed.isDwelling && parsed.dateString && parsed.dateString !== today) {
         const resetForToday: DwellSessionState = {
-          isDwelling: parsed.isDwelling,
-          enteredAt: parsed.isDwelling ? new Date().toISOString() : undefined,
+          isDwelling: false,
+          enteredAt: undefined,
           minutesDwelling: 0,
           gymName: parsed.gymName,
           completedToday: false,
@@ -366,10 +367,19 @@ export const storageService = {
       };
     }
 
+    // Anchor active dwell session to the day the user arrived (even if it crosses midnight)
+    const arrivalDate = new Date(session.enteredAt);
+    const sessionDate = session.dateString || formatDateToYYYYMMDD(arrivalDate);
+    const sessionWorkout = workouts.find((w) => w.dateString === sessionDate);
+    const alreadyDoneForSession = Boolean(sessionWorkout);
+    const canUpgradeForSession = Boolean(
+      sessionWorkout && !sessionWorkout.isPartnered && isPartnered
+    );
+
     // Guard: if upgrading from a custom gym workout to a partnered gym, do not credit a stale
     // dwell session that was started at a different (custom) gym.
     if (
-      canUpgradeToday &&
+      canUpgradeForSession &&
       session.gymName &&
       prefs.gymLocation?.name &&
       session.gymName !== prefs.gymLocation.name
@@ -392,7 +402,7 @@ export const storageService = {
     }
 
     // User is actively dwelling inside the gym perimeter — compute elapsed time
-    const elapsedMs = Date.now() - new Date(session.enteredAt).getTime();
+    const elapsedMs = Date.now() - arrivalDate.getTime();
     const elapsedMins = Math.max(0, Math.floor(elapsedMs / (1000 * 60)));
     const isManualGym = Boolean(prefs.gymLocation?.isManual || session.isManualSession);
 
@@ -402,25 +412,28 @@ export const storageService = {
       let latestStreak = streak;
       let latestWorkouts = workouts;
       let completedNow = false;
+      let sessionCompleted = alreadyDoneForSession;
 
-      if (!alreadyDoneToday || canUpgradeToday) {
+      if (!alreadyDoneForSession || canUpgradeForSession) {
         const gymName = session.gymName || prefs.gymLocation?.name || 'Local Gym';
         const result = recordCompletedWorkout(
           streak,
           prefs,
           workouts,
           gymName,
-          new Date(),
+          arrivalDate,
           cappedMins,
           profile.id,
-          isPartnered
+          isPartnered,
+          profile.createdAt
         );
         latestStreak = result.updatedState;
         latestWorkouts = result.updatedWorkouts;
         completedNow = result.success;
+        sessionCompleted = result.success || alreadyDoneForSession;
       } else {
         latestWorkouts = workouts.map((w) =>
-          w.dateString === today && cappedMins > w.durationMinutes
+          w.dateString === sessionDate && cappedMins > w.durationMinutes
             ? {
                 ...w,
                 durationMinutes: cappedMins,
@@ -436,8 +449,8 @@ export const storageService = {
         enteredAt: undefined,
         minutesDwelling: cappedMins,
         gymName: session.gymName || prefs.gymLocation?.name,
-        completedToday: true,
-        dateString: today,
+        completedToday: sessionCompleted,
+        dateString: sessionDate,
         isManualSession: false,
       };
 
@@ -455,18 +468,19 @@ export const storageService = {
       };
     }
 
-    // Case 1: Reached 15-minute threshold for the first time today, or upgrading custom -> partnered today
-    if (elapsedMins >= FIXED_DWELL_MINUTES && (!alreadyDoneToday || canUpgradeToday)) {
+    // Case 1: Reached 15-minute threshold for the first time in this session, or upgrading custom -> partnered
+    if (elapsedMins >= FIXED_DWELL_MINUTES && (!alreadyDoneForSession || canUpgradeForSession)) {
       const gymName = session.gymName || prefs.gymLocation?.name || 'Local Gym';
       const result = recordCompletedWorkout(
         streak,
         prefs,
         workouts,
         gymName,
-        new Date(),
+        arrivalDate,
         elapsedMins,
         profile.id,
-        isPartnered
+        isPartnered,
+        profile.createdAt
       );
 
       // Keep isDwelling: true and enteredAt intact so timer continues past 15 mins!
@@ -474,8 +488,8 @@ export const storageService = {
         ...session,
         isDwelling: true,
         minutesDwelling: elapsedMins,
-        completedToday: true,
-        dateString: today,
+        completedToday: result.success,
+        dateString: sessionDate,
       };
 
       await Promise.all([
@@ -492,12 +506,12 @@ export const storageService = {
       };
     }
 
-    // Case 2: Already completed today's 15-min check-in (and not upgrading to partnered), still at the gym
-    // Continue incrementing minutesDwelling and updating today's workout durationMinutes!
-    if (alreadyDoneToday && !canUpgradeToday) {
+    // Case 2: Already completed this session's 15-min check-in (and not upgrading to partnered), still at the gym
+    // Continue incrementing minutesDwelling and updating the session workout's durationMinutes!
+    if (alreadyDoneForSession && !canUpgradeForSession) {
       let workoutsUpdated = false;
       const updatedWorkouts = workouts.map((w) => {
-        if (w.dateString === today && elapsedMins > w.durationMinutes) {
+        if (w.dateString === sessionDate && elapsedMins > w.durationMinutes) {
           workoutsUpdated = true;
           return {
             ...w,
@@ -514,7 +528,7 @@ export const storageService = {
         isDwelling: true,
         completedToday: true,
         minutesDwelling: Math.max(session.minutesDwelling, elapsedMins),
-        dateString: today,
+        dateString: sessionDate,
       };
 
       const promises: Promise<any>[] = [this.saveDwellSession(updatedSession)];
@@ -536,7 +550,7 @@ export const storageService = {
       const updatedSession: DwellSessionState = {
         ...session,
         minutesDwelling: elapsedMins,
-        dateString: today,
+        dateString: sessionDate,
       };
       await this.saveDwellSession(updatedSession);
       return {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ScrollView,
   View,
@@ -19,7 +19,7 @@ import { GpsSimulatorModal } from '../../components/GpsSimulatorModal';
 import { FirstTimeNameModal } from '../../components/FirstTimeNameModal';
 import { BackgroundLocationModal } from '../../components/BackgroundLocationModal';
 import { ENABLE_DEBUG_SIMULATOR } from '../../constants/config';
-import { theme } from '../../constants/theme';
+import { AppTheme } from '../../constants/theme';
 
 export default function DashboardScreen() {
   const {
@@ -38,7 +38,10 @@ export default function DashboardScreen() {
     startManualGymSession,
     endManualGymSession,
     signInWithAccount,
+    theme,
   } = useFitness();
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [simulatorVisible, setSimulatorVisible] = useState(false);
@@ -217,7 +220,7 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,

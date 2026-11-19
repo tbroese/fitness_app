@@ -3,11 +3,12 @@ import { Animated, Dimensions, PanResponder, View } from 'react-native';
 import { Tabs, router, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { theme } from '../../constants/theme';
+import { useFitness } from '../../context/FitnessContext';
 
 const TAB_ROUTES = ['/', '/history', '/leaderboard', '/goal', '/profile'] as const;
 
 export default function TabLayout() {
+  const { theme } = useFitness();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const currentIndexRef = useRef(0);
@@ -104,6 +105,7 @@ export default function TabLayout() {
     <View style={{ flex: 1, backgroundColor: theme.background }} {...panResponder.panHandlers}>
       <Animated.View style={{ flex: 1, transform: [{ translateX: slideX }] }}>
         <Tabs
+          key={theme.background}
           screenOptions={{
             animation: 'none',
             lazy: false,

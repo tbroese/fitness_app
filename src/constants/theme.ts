@@ -1,4 +1,6 @@
-export const theme = {
+export type ThemeMode = 'dark' | 'light';
+
+export const darkTheme = {
   background: '#0F0F0F', // YouTube-style neutral dark background
   cardBackground: '#1A1A1A', // Elevated dark surface
   cardBorder: '#2C2C2C', // Clean neutral border
@@ -39,3 +41,54 @@ export const theme = {
   pillBackground: '#222226',
   pillActive: '#3B82F6',
 };
+
+export const lightTheme: AppTheme = {
+  background: '#F3F4F6',
+  cardBackground: '#FFFFFF',
+  cardBorder: '#E5E7EB',
+  cardBackgroundSubtle: '#F9FAFB',
+
+  textPrimary: '#111827',
+  textSecondary: '#4B5563',
+  textTertiary: '#6B7280',
+
+  primary: '#2563EB',
+  onPrimary: '#FFFFFF',
+  primaryLight: '#2563EB',
+  primaryMuted: 'rgba(37, 99, 235, 0.10)',
+  primaryBorder: 'rgba(37, 99, 235, 0.28)',
+
+  brandRed: '#CC0022',
+  flame: '#E11D48',
+  flameLight: '#E11D48',
+  flameMuted: 'rgba(225, 29, 72, 0.10)',
+
+  success: '#059669',
+  successLight: '#10B981',
+  successMuted: 'rgba(5, 150, 105, 0.12)',
+
+  warning: '#D97706',
+  warningMuted: 'rgba(217, 119, 6, 0.12)',
+
+  danger: '#DC2626',
+  dangerMuted: 'rgba(220, 38, 38, 0.10)',
+
+  tabBarBackground: '#FFFFFF',
+  tabBarBorder: '#E5E7EB',
+  tabBarActive: '#2563EB',
+  tabBarInactive: '#6B7280',
+
+  inputBackground: '#F9FAFB',
+  inputBorder: '#D1D5DB',
+  pillBackground: '#F3F4F6',
+  pillActive: '#2563EB',
+};
+
+export type AppTheme = typeof darkTheme;
+
+export function getTheme(mode: ThemeMode = 'dark'): AppTheme {
+  return mode === 'light' ? lightTheme : darkTheme;
+}
+
+// Default export reference for static/non-hook callers
+export const theme = darkTheme;

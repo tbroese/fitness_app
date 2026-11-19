@@ -1,6 +1,10 @@
 export const FIXED_DWELL_MINUTES = 15;
 export const MAX_MANUAL_SESSION_MINUTES = 180;
 export const DEFAULT_GEOFENCE_RADIUS_METERS = 300;
+export const MIN_GEOFENCE_RADIUS_METERS = 50;
+
+export type ThemeMode = 'dark' | 'light';
+export type DistanceUnit = 'mi' | 'km';
 
 export type AuthProviderType = 'google' | 'apple' | 'device';
 export type WeightUnit = 'lbs' | 'kg';
@@ -57,6 +61,9 @@ export interface UserPreferences {
   gymLocation: GymLocation | null;
   dwellDurationMinutes: number; // Fixed at 15 mins
   autoDetectGym: boolean;
+  geofenceRadiusMeters?: number; // 50..300m (default 300m)
+  themeMode?: ThemeMode; // 'dark' | 'light'
+  distanceUnit?: DistanceUnit; // 'mi' | 'km'
   updatedAt?: string;
 }
 

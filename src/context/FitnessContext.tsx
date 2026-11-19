@@ -12,10 +12,14 @@ import {
   AuthProviderType,
   WeightUnit,
   UserGender,
+  ThemeMode,
+  DistanceUnit,
   FIXED_DWELL_MINUTES,
   MAX_MANUAL_SESSION_MINUTES,
   DEFAULT_GEOFENCE_RADIUS_METERS,
+  MIN_GEOFENCE_RADIUS_METERS,
 } from '../types/fitness';
+import { AppTheme, getTheme } from '../constants/theme';
 import {
   storageService,
   createDefaultUserProfile,
@@ -87,6 +91,12 @@ interface FitnessContextType {
   cancelPendingGoal: () => Promise<void>;
   updateGymLocation: (location: GymLocation) => Promise<void>;
   setAutoDetectGym: (enabled: boolean) => Promise<void>;
+  setGeofenceRadiusMeters: (radiusMeters: number) => Promise<void>;
+  themeMode: ThemeMode;
+  theme: AppTheme;
+  setThemeMode: (mode: ThemeMode) => Promise<void>;
+  distanceUnit: DistanceUnit;
+  setDistanceUnit: (unit: DistanceUnit) => Promise<void>;
   refreshLocation: () => Promise<void>;
   refreshPermissionStatus: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
   requestAutoTrackingPermission: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
@@ -350,10 +360,19 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       // Ensure defaults & locked values
+      const resolvedRadius = Math.min(
+        DEFAULT_GEOFENCE_RADIUS_METERS,
+        Math.max(
+          MIN_GEOFENCE_RADIUS_METERS,
+          savedPrefs.geofenceRadiusMeters ?? DEFAULT_GEOFENCE_RADIUS_METERS
+        )
+      );
+      savedPrefs.geofenceRadiusMeters = resolvedRadius;
+      savedPrefs.themeMode = savedPrefs.themeMode || 'dark';
       savedPrefs.dwellDurationMinutes = FIXED_DWELL_MINUTES;
       if (savedPrefs.gymLocation) {
         savedPrefs.gymLocation.dwellMinutesRequired = FIXED_DWELL_MINUTES;
-        savedPrefs.gymLocation.radiusMeters = DEFAULT_GEOFENCE_RADIUS_METERS;
+        savedPrefs.gymLocation.radiusMeters = resolvedRadius;
       }
 
       const currentWeekId = getIsoWeekId(new Date());
@@ -824,7 +843,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     if (updatedPrefs.gymLocation) {
       updatedPrefs.gymLocation.dwellMinutesRequired = FIXED_DWELL_MINUTES;
-      updatedPrefs.gymLocation.radiusMeters = DEFAULT_GEOFENCE_RADIUS_METERS;
+      updatedPrefs.gymLocation.radiusMeters =
+        preferences.geofenceRadiusMeters ?? DEFAULT_GEOFENCE_RADIUS_METERS;
     }
 
     setPreferences(updatedPrefs);
@@ -856,11 +876,13 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await storageService.savePreferences(updatedPrefs);
   };
 
-  // Update Gym Location with locked 300m radius and 15 min dwell
+  // Update Gym Location with configured radius (<= 300m) and 15 min dwell
   const updateGymLocation = async (location: GymLocation) => {
+    const activeRadius =
+      preferences.geofenceRadiusMeters ?? DEFAULT_GEOFENCE_RADIUS_METERS;
     const lockedLocation: GymLocation = {
       ...location,
-      radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Fixed at 300m
+      radiusMeters: activeRadius,
       dwellMinutesRequired: FIXED_DWELL_MINUTES, // Fixed at 15m
     };
 
@@ -919,6 +941,62 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       await stopGymGeofence();
     }
   }, [permissionStatus.backgroundGranted]);
+
+  const setGeofenceRadiusMeters = useCallback(
+    async (radiusMeters: number) => {
+      const clamped = Math.min(
+        DEFAULT_GEOFENCE_RADIUS_METERS,
+        Math.max(MIN_GEOFENCE_RADIUS_METERS, Math.round(radiusMeters))
+      );
+      const currentPrefs = preferencesRef.current;
+      const updatedGym = currentPrefs.gymLocation
+        ? { ...currentPrefs.gymLocation, radiusMeters: clamped }
+        : null;
+      const updatedPrefs: UserPreferences = {
+        ...currentPrefs,
+        geofenceRadiusMeters: clamped,
+        gymLocation: updatedGym,
+      };
+      preferencesRef.current = updatedPrefs;
+      setPreferences(updatedPrefs);
+      await storageService.savePreferences(updatedPrefs);
+      if (
+        updatedGym &&
+        !updatedGym.isManual &&
+        updatedPrefs.autoDetectGym &&
+        permissionStatus.backgroundGranted
+      ) {
+        await setupGymGeofence(updatedGym);
+      }
+      refreshLocation();
+    },
+    [permissionStatus.backgroundGranted, refreshLocation]
+  );
+
+  const themeMode: ThemeMode = preferences.themeMode || 'dark';
+  const activeTheme = React.useMemo(() => getTheme(themeMode), [themeMode]);
+
+  const setThemeMode = useCallback(async (mode: ThemeMode) => {
+    const updatedPrefs: UserPreferences = {
+      ...preferencesRef.current,
+      themeMode: mode,
+    };
+    preferencesRef.current = updatedPrefs;
+    setPreferences(updatedPrefs);
+    await storageService.savePreferences(updatedPrefs);
+  }, []);
+
+  const distanceUnit: DistanceUnit = preferences.distanceUnit || 'mi';
+
+  const setDistanceUnit = useCallback(async (unit: DistanceUnit) => {
+    const updatedPrefs: UserPreferences = {
+      ...preferencesRef.current,
+      distanceUnit: unit,
+    };
+    preferencesRef.current = updatedPrefs;
+    setPreferences(updatedPrefs);
+    await storageService.savePreferences(updatedPrefs);
+  }, []);
 
   const refreshPermissionStatus = useCallback(async () => {
     const perms = await getLocationPermissionStatus();
@@ -1178,6 +1256,12 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         cancelPendingGoal,
         updateGymLocation,
         setAutoDetectGym,
+        setGeofenceRadiusMeters,
+        themeMode,
+        theme: activeTheme,
+        setThemeMode,
+        distanceUnit,
+        setDistanceUnit,
         refreshLocation,
         refreshPermissionStatus,
         requestAutoTrackingPermission,

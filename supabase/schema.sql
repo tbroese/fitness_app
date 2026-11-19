@@ -13,7 +13,7 @@
 -- 1. Leaderboard Users Table (1 row per user)
 CREATE TABLE IF NOT EXISTS public.leaderboard_users (
   id TEXT PRIMARY KEY,
-  full_name TEXT NOT NULL,
+  full_name TEXT NOT NULL CHECK (char_length(full_name) BETWEEN 1 AND 30),
   user_tag TEXT NOT NULL DEFAULT LPAD((FLOOR(RANDOM() * 9000) + 1000)::INT::TEXT, 4, '0'),
   email TEXT,
   auth_provider TEXT DEFAULT 'device',
@@ -30,9 +30,9 @@ CREATE TABLE IF NOT EXISTS public.leaderboard_users (
   total_gym_time_minutes INTEGER NOT NULL DEFAULT 0,
   workouts_count INTEGER NOT NULL DEFAULT 0,
   weekly_goal INTEGER NOT NULL DEFAULT 2,
-  squat_pr_kg DOUBLE PRECISION NOT NULL DEFAULT 0,
-  bench_pr_kg DOUBLE PRECISION NOT NULL DEFAULT 0,
-  deadlift_pr_kg DOUBLE PRECISION NOT NULL DEFAULT 0,
+  squat_pr_kg DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (squat_pr_kg BETWEEN 0 AND 550),
+  bench_pr_kg DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (bench_pr_kg BETWEEN 0 AND 550),
+  deadlift_pr_kg DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (deadlift_pr_kg BETWEEN 0 AND 550),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

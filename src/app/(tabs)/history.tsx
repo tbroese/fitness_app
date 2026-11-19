@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,11 @@ import { useFitness } from '../../context/FitnessContext';
 import { WorkoutContributionGraph } from '../../components/WorkoutContributionGraph';
 import { WorkoutSession } from '../../types/fitness';
 import { formatGymDuration } from '../../utils/dateUtils';
-import { theme } from '../../constants/theme';
+import { AppTheme } from '../../constants/theme';
 
 export default function HistoryScreen() {
-  const { workouts, streakState } = useFitness();
+  const { workouts, streakState, theme } = useFitness();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const renderWorkoutItem = ({ item }: { item: WorkoutSession }) => {
     const dateObj = new Date(item.timestamp);
@@ -106,7 +107,7 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,

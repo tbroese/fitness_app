@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -9,9 +9,9 @@ import {
 } from 'react-native';
 import * as Linking from 'expo-linking';
 import { Ionicons } from '@expo/vector-icons';
-import { SignInAccountInput } from '../context/FitnessContext';
+import { SignInAccountInput, useFitness } from '../context/FitnessContext';
 import { cloudDatabase, getOAuthRedirectUri } from '../services/cloud';
-import { theme } from '../constants/theme';
+import { AppTheme } from '../constants/theme';
 
 interface FirstTimeNameModalProps {
   visible: boolean;
@@ -44,6 +44,8 @@ export const FirstTimeNameModal: React.FC<FirstTimeNameModalProps> = ({
   visible,
   onSignIn,
 }) => {
+  const { theme } = useFitness();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -130,7 +132,7 @@ export const FirstTimeNameModal: React.FC<FirstTimeNameModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.82)',

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,8 @@ import {
   PanResponder,
   LayoutChangeEvent,
 } from 'react-native';
-import { theme } from '../constants/theme';
+import { AppTheme } from '../constants/theme';
+import { useFitness } from '../context/FitnessContext';
 
 export const MIN_AGE_BOUND = 13;
 export const MAX_AGE_BOUND = 80;
@@ -22,6 +23,8 @@ export const AgeRangeSlider: React.FC<AgeRangeSliderProps> = ({
   maxAge,
   onChange,
 }) => {
+  const { theme } = useFitness();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [trackWidth, setTrackWidth] = useState(260);
   const trackWidthRef = useRef(260);
   const minAgeRef = useRef(minAge);
@@ -142,7 +145,7 @@ export const AgeRangeSlider: React.FC<AgeRangeSliderProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     marginTop: 4,
   },

@@ -1,5 +1,12 @@
 export type WeightUnit = 'lbs' | 'kg';
 
+export const MAX_LIFT_PR_LBS = 1200;
+export const MAX_LIFT_PR_KG = 545;
+
+export function getMaxLiftPr(unit: WeightUnit): number {
+  return unit === 'kg' ? MAX_LIFT_PR_KG : MAX_LIFT_PR_LBS;
+}
+
 const KG_TO_LBS = 2.2046226218;
 
 export function convertFromKg(kg: number, unit: WeightUnit): number {

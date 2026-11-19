@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StreakState } from '../types/fitness';
-import { theme } from '../constants/theme';
+import { AppTheme } from '../constants/theme';
+import { useFitness } from '../context/FitnessContext';
 import { STREAK_LOST_MESSAGE } from '../services/streakManager';
 
 interface StreakCardProps {
@@ -16,6 +17,8 @@ export const StreakCard: React.FC<StreakCardProps> = ({
   weeklyGoal,
   isPartneredGym,
 }) => {
+  const { theme } = useFitness();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const isAtRisk = streakState.streakStatus === 'at_risk';
   const isReset = streakState.streakStatus === 'reset';
   const partnerStreak = streakState.partnerStreak ?? 0;
@@ -97,7 +100,7 @@ export const StreakCard: React.FC<StreakCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     backgroundColor: theme.cardBackground,
     borderRadius: 20,

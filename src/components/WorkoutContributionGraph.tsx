@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import { WorkoutSession } from '../types/fitness';
 import { formatDateToYYYYMMDD } from '../utils/dateUtils';
-import { theme } from '../constants/theme';
+import { AppTheme } from '../constants/theme';
+import { useFitness } from '../context/FitnessContext';
 
 interface WorkoutContributionGraphProps {
   workouts: WorkoutSession[];
@@ -38,7 +39,7 @@ const MONTH_NAMES = [
   'Dec',
 ];
 
-function getCellColor(minutes: number, isFuture: boolean): string {
+function getCellColor(minutes: number, isFuture: boolean, theme: AppTheme): string {
   if (isFuture) return 'transparent';
   if (minutes <= 0) return theme.cardBackgroundSubtle;
   if (minutes < 30) return 'rgba(16, 185, 129, 0.30)';
@@ -58,6 +59,8 @@ export const WorkoutContributionGraph: React.FC<WorkoutContributionGraphProps> =
   workouts,
   weeksCount = 16,
 }) => {
+  const { theme } = useFitness();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const [selectedDay, setSelectedDay] = useState<DayCell | null>(null);
 
@@ -212,7 +215,7 @@ export const WorkoutContributionGraph: React.FC<WorkoutContributionGraphProps> =
                     style={[
                       styles.cell,
                       {
-                        backgroundColor: getCellColor(day.minutes, day.isFuture),
+                        backgroundColor: getCellColor(day.minutes, day.isFuture, theme),
                         borderColor: day.isFuture
                           ? 'transparent'
                           : isSelected
@@ -248,7 +251,7 @@ export const WorkoutContributionGraph: React.FC<WorkoutContributionGraphProps> =
 const CELL_SIZE = 14;
 const CELL_GAP = 4;
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   card: {
     backgroundColor: theme.cardBackground,
     borderRadius: 16,

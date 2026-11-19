@@ -66,6 +66,9 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   gymLocation: null,
   dwellDurationMinutes: FIXED_DWELL_MINUTES,
   autoDetectGym: true,
+  geofenceRadiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS,
+  themeMode: 'dark',
+  distanceUnit: 'mi',
 };
 
 export const DEFAULT_STREAK_STATE: StreakState = {

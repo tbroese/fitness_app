@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Modal,
   View,
@@ -7,7 +7,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../constants/theme';
+import { AppTheme } from '../constants/theme';
+import { useFitness } from '../context/FitnessContext';
 
 interface BackgroundLocationModalProps {
   visible: boolean;
@@ -20,6 +21,8 @@ export const BackgroundLocationModal: React.FC<BackgroundLocationModalProps> = (
   onContinue,
   onUseForegroundOnly,
 }) => {
+  const { theme } = useFitness();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <Modal visible={visible} animationType="fade" transparent statusBarTranslucent>
       <View style={styles.overlay}>
@@ -64,7 +67,7 @@ export const BackgroundLocationModal: React.FC<BackgroundLocationModalProps> = (
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.82)',

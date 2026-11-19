@@ -17,7 +17,7 @@ import { RemoteLeaderboardUser } from '../../services/cloud';
 import { AgeRangeSlider, MAX_AGE_BOUND, MIN_AGE_BOUND } from '../../components/AgeRangeSlider';
 import { UserGender, WeightUnit } from '../../types/fitness';
 import { formatWeightWithUnit } from '../../utils/weightUtils';
-import { theme } from '../../constants/theme';
+import { AppTheme } from '../../constants/theme';
 
 type LeaderboardCategory = 'global' | 'gym' | 'friends';
 type GenderFilter = 'all' | 'male' | 'female';
@@ -41,6 +41,12 @@ interface LeaderboardEntry {
   age?: number | null;
   currentStreak: number;
   bestStreak: number;
+  personalCurrentStreak: number;
+  personalBestStreak: number;
+  partnerCurrentStreak: number;
+  partnerBestStreak: number;
+  workoutsCount: number;
+  weeklyGoal: number;
   totalGymTimeMinutes: number;
   squatPrKg: number;
   benchPrKg: number;
@@ -96,7 +102,10 @@ export default function LeaderboardScreen() {
     sendFriendRequestToUser,
     respondToFriendRequest,
     setPreferredWeightUnit,
+    theme,
   } = useFitness();
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [selectedCategory, setSelectedCategory] = useState<LeaderboardCategory>('global');
   const [selectedFilter, setSelectedFilter] = useState<LeaderboardFilter>('currentStreak');
@@ -181,6 +190,10 @@ export default function LeaderboardScreen() {
     () => workouts.reduce((sum, w) => sum + (w.durationMinutes || 0), 0),
     [workouts]
   );
+  const [selectedEntry, setSelectedEntry] = useState<{
+    entry: LeaderboardEntry;
+    rank: number;
+  } | null>(null);
 
   const currentUserEntry: LeaderboardEntry = useMemo(
     () => {
@@ -203,6 +216,12 @@ export default function LeaderboardScreen() {
         bestStreak: usePartnerStreak
           ? streakState.bestPartnerStreak ?? 0
           : streakState.bestStreak,
+        personalCurrentStreak: streakState.currentStreak,
+        personalBestStreak: streakState.bestStreak,
+        partnerCurrentStreak: streakState.partnerStreak ?? 0,
+        partnerBestStreak: streakState.bestPartnerStreak ?? 0,
+        workoutsCount: workouts.length,
+        weeklyGoal: preferences.weeklyGoal,
         totalGymTimeMinutes,
         squatPrKg: squat,
         benchPrKg: bench,
@@ -210,7 +229,15 @@ export default function LeaderboardScreen() {
         totalPrKg: squat + bench + deadlift,
       };
     },
-    [userProfile, preferences.gymLocation, streakState, totalGymTimeMinutes, selectedCategory]
+    [
+      userProfile,
+      preferences.gymLocation,
+      preferences.weeklyGoal,
+      streakState,
+      totalGymTimeMinutes,
+      workouts.length,
+      selectedCategory,
+    ]
   );
 
   const friendIdSet = useMemo(
@@ -269,6 +296,12 @@ export default function LeaderboardScreen() {
           age: u.age ?? null,
           currentStreak: usePartnerStreak ? u.partnerStreak ?? 0 : u.currentStreak,
           bestStreak: usePartnerStreak ? u.bestPartnerStreak ?? 0 : u.bestStreak,
+          personalCurrentStreak: u.currentStreak,
+          personalBestStreak: u.bestStreak,
+          partnerCurrentStreak: u.partnerStreak ?? 0,
+          partnerBestStreak: u.bestPartnerStreak ?? 0,
+          workoutsCount: u.workoutsCount ?? 0,
+          weeklyGoal: u.weeklyGoal ?? 2,
           totalGymTimeMinutes: u.totalGymTimeMinutes,
           squatPrKg: squat,
           benchPrKg: bench,
@@ -438,11 +471,13 @@ export default function LeaderboardScreen() {
     const metric = renderMetricDisplay(item);
 
     return (
-      <View
+      <TouchableOpacity
         style={[
           styles.entryCard,
           item.isCurrentUser && styles.currentUserCard,
         ]}
+        onPress={() => setSelectedEntry({ entry: item, rank })}
+        activeOpacity={0.82}
       >
         {/* Rank Badge */}
         <View style={[styles.rankBadge, rank === 1 && styles.firstRankBadge]}>
@@ -521,7 +556,7 @@ export default function LeaderboardScreen() {
           <Text style={styles.metricValue}>{metric.value}</Text>
           <Text style={styles.metricUnit}>{metric.unit}</Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -910,11 +945,177 @@ export default function LeaderboardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Enlarged Athlete Stats Modal */}
+      <Modal
+        visible={Boolean(selectedEntry)}
+        transparent
+        statusBarTranslucent
+        animationType="fade"
+        onRequestClose={() => setSelectedEntry(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setSelectedEntry(null)}
+        >
+          {selectedEntry && (
+            <TouchableOpacity
+              style={styles.detailModalCard}
+              activeOpacity={1}
+              onPress={() => {}}
+            >
+              {/* Header */}
+              <View style={styles.detailHeader}>
+                <View
+                  style={[
+                    styles.rankBadge,
+                    selectedEntry.rank === 1 && styles.firstRankBadge,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.rankText,
+                      selectedEntry.rank === 1 && styles.firstRankText,
+                    ]}
+                  >
+                    #{selectedEntry.rank}
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.detailName} numberOfLines={1}>
+                      {selectedEntry.entry.name}
+                    </Text>
+                    <Text style={styles.userTagText}>
+                      #{selectedEntry.entry.userTag}
+                    </Text>
+                    {selectedEntry.entry.isCurrentUser && (
+                      <View style={styles.youBadge}>
+                        <Text style={styles.youBadgeText}>YOU</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.detailGymText} numberOfLines={1}>
+                    {selectedEntry.entry.gymName}
+                    {!selectedEntry.entry.isPartnered &&
+                    selectedEntry.entry.gymName !== 'No Gym Selected'
+                      ? ' • Custom Gym'
+                      : selectedEntry.entry.isPartnered
+                      ? ' • Verified Gym'
+                      : ''}
+                  </Text>
+                </View>
+
+                <TouchableOpacity onPress={() => setSelectedEntry(null)}>
+                  <Ionicons name="close" size={22} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Optional Athlete Meta + Friend Action */}
+              <View style={styles.detailMetaRow}>
+                {selectedEntry.entry.gender && (
+                  <View style={styles.detailMetaPill}>
+                    <Text style={styles.detailMetaText}>
+                      {selectedEntry.entry.gender === 'male' ? 'Male' : 'Female'}
+                    </Text>
+                  </View>
+                )}
+                {selectedEntry.entry.age ? (
+                  <View style={styles.detailMetaPill}>
+                    <Text style={styles.detailMetaText}>
+                      Age {selectedEntry.entry.age}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={styles.detailMetaPill}>
+                  <Text style={styles.detailMetaText}>
+                    Goal {selectedEntry.entry.weeklyGoal}/wk
+                  </Text>
+                </View>
+                {!selectedEntry.entry.isCurrentUser && (
+                  <View style={{ marginLeft: 'auto' }}>
+                    {renderFriendStatusButton(
+                      selectedEntry.entry.id,
+                      selectedEntry.entry.name
+                    )}
+                  </View>
+                )}
+              </View>
+
+              {/* Streaks & Activity */}
+              <Text style={styles.detailSectionLabel}>STREAKS & ACTIVITY</Text>
+              <View style={styles.detailGrid}>
+                <View style={styles.detailStatBox}>
+                  <Text style={styles.detailStatValue}>
+                    🔥 {selectedEntry.entry.partnerCurrentStreak}
+                  </Text>
+                  <Text style={styles.detailStatLabel}>
+                    Verified Streak (Best {selectedEntry.entry.partnerBestStreak})
+                  </Text>
+                </View>
+                <View style={styles.detailStatBox}>
+                  <Text style={styles.detailStatValue}>
+                    ⚡ {selectedEntry.entry.personalCurrentStreak}
+                  </Text>
+                  <Text style={styles.detailStatLabel}>
+                    Personal Streak (Best {selectedEntry.entry.personalBestStreak})
+                  </Text>
+                </View>
+                <View style={styles.detailStatBox}>
+                  <Text style={styles.detailStatValue}>
+                    ⏱️ {formatGymTime(selectedEntry.entry.totalGymTimeMinutes)}
+                  </Text>
+                  <Text style={styles.detailStatLabel}>Total Gym Time</Text>
+                </View>
+                <View style={styles.detailStatBox}>
+                  <Text style={styles.detailStatValue}>
+                    📅 {selectedEntry.entry.workoutsCount}
+                  </Text>
+                  <Text style={styles.detailStatLabel}>Total Workouts</Text>
+                </View>
+              </View>
+
+              {/* Strength PRs */}
+              <Text style={styles.detailSectionLabel}>
+                STRENGTH PRS ({weightUnit.toUpperCase()})
+              </Text>
+              <View style={styles.detailPrRow}>
+                <View style={styles.detailPrBox}>
+                  <Text style={styles.detailPrValue}>
+                    {formatWeightWithUnit(selectedEntry.entry.squatPrKg, weightUnit)}
+                  </Text>
+                  <Text style={styles.detailPrLabel}>Squat</Text>
+                </View>
+                <View style={styles.detailPrBox}>
+                  <Text style={styles.detailPrValue}>
+                    {formatWeightWithUnit(selectedEntry.entry.benchPrKg, weightUnit)}
+                  </Text>
+                  <Text style={styles.detailPrLabel}>Bench</Text>
+                </View>
+                <View style={styles.detailPrBox}>
+                  <Text style={styles.detailPrValue}>
+                    {formatWeightWithUnit(selectedEntry.entry.deadliftPrKg, weightUnit)}
+                  </Text>
+                  <Text style={styles.detailPrLabel}>Deadlift</Text>
+                </View>
+                <View style={[styles.detailPrBox, styles.detailPrTotalBox]}>
+                  <Text style={[styles.detailPrValue, { color: theme.primaryLight }]}>
+                    {formatWeightWithUnit(selectedEntry.entry.totalPrKg, weightUnit)}
+                  </Text>
+                  <Text style={styles.detailPrLabel}>Total</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,
@@ -1519,5 +1720,111 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: theme.onPrimary,
+  },
+  detailModalCard: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  detailName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme.textPrimary,
+    flexShrink: 1,
+  },
+  detailGymText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: 2,
+  },
+  detailMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.cardBorder,
+  },
+  detailMetaPill: {
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  detailMetaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.textSecondary,
+  },
+  detailSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: theme.textTertiary,
+    letterSpacing: 0.8,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  detailGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  detailStatBox: {
+    width: '48.5%',
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  detailStatValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: theme.textPrimary,
+  },
+  detailStatLabel: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 3,
+  },
+  detailPrRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  detailPrBox: {
+    flex: 1,
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  detailPrTotalBox: {
+    borderColor: theme.primaryBorder,
+    backgroundColor: theme.primaryMuted,
+  },
+  detailPrValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: theme.textPrimary,
+  },
+  detailPrLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.textSecondary,
+    marginTop: 2,
   },
 });

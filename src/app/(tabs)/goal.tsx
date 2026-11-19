@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ScrollView,
   View,
@@ -20,7 +20,7 @@ import {
   setupGymGeofence,
   calculateDistanceMeters,
 } from '../../services/locationService';
-import { theme } from '../../constants/theme';
+import { AppTheme } from '../../constants/theme';
 import { PARTNERED_GYMS, PartneredGym } from '../../constants/partneredGyms';
 import { getIsoWeekId } from '../../utils/dateUtils';
 import { FIXED_DWELL_MINUTES, DEFAULT_GEOFENCE_RADIUS_METERS } from '../../types/fitness';
@@ -40,7 +40,11 @@ export default function GoalSetupScreen() {
     setAutoDetectGym,
     requestAutoTrackingPermission,
     searchExistingGyms,
+    theme,
+    distanceUnit,
   } = useFitness();
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [bgLocationModalVisible, setBgLocationModalVisible] = useState(false);
 
@@ -197,10 +201,9 @@ export default function GoalSetupScreen() {
       return;
     }
 
-    // On Monday, update immediately for the new week
+    // On Monday (or before first workout), update immediately
     setSelectedGoal(newGoal);
     await setWeeklyGoal(newGoal);
-    Alert.alert('Goal Updated', `Your weekly goal is now ${newGoal} workout(s)/week.`);
   };
 
   const handleCancelPending = async () => {
@@ -547,8 +550,8 @@ export default function GoalSetupScreen() {
                                       userCoords.longitude,
                                       gym.latitude,
                                       gym.longitude
-                                    ) / 1609.344
-                                  ).toFixed(1)} mi away • ${gym.address}`
+                                    ) / (distanceUnit === 'mi' ? 1609.344 : 1000)
+                                  ).toFixed(1)} ${distanceUnit} away • ${gym.address}`
                                 : gym.address}
                             </Text>
                           </View>
@@ -840,7 +843,7 @@ export default function GoalSetupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,

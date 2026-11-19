@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WorkoutSession } from '../types/fitness';
-import { theme } from '../constants/theme';
+import { AppTheme } from '../constants/theme';
+import { useFitness } from '../context/FitnessContext';
 import {
   getWeekStartAndEnd,
   formatDateToYYYYMMDD,
@@ -29,6 +30,8 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   isPartneredGym = false,
   signupDate,
 }) => {
+  const { theme } = useFitness();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { start } = getWeekStartAndEnd(new Date());
   const daysRemaining = getDaysRemainingInWeek(new Date());
   const currentWeekId = getIsoWeekId(new Date());
@@ -181,7 +184,7 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   card: {
     backgroundColor: theme.cardBackground,
     borderRadius: 20,

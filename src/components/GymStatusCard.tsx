@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GymLocation, DwellSessionState, FIXED_DWELL_MINUTES } from '../types/fitness';
 import { formatGymDuration } from '../utils/dateUtils';
-import { theme } from '../constants/theme';
+import { AppTheme } from '../constants/theme';
+import { useFitness } from '../context/FitnessContext';
 
 interface GymStatusCardProps {
   gym: GymLocation | null;
@@ -30,6 +31,8 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
   onStartManualSession,
   onEndManualSession,
 }) => {
+  const { theme, distanceUnit } = useFitness();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const isAutoTrackingOn = autoDetectGym && permissionStatus.backgroundGranted;
   const isInside = distanceMeters !== null && gym !== null && distanceMeters <= gym.radiusMeters;
   const dwellRequired = FIXED_DWELL_MINUTES;
@@ -97,7 +100,17 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
             {distanceMeters !== null
               ? isInside
                 ? `Inside gym perimeter (${distanceMeters}m)`
-                : `${distanceMeters > 1000 ? (distanceMeters / 1000).toFixed(1) + ' km' : distanceMeters + 'm'} away`
+                : distanceUnit === 'mi'
+                ? `${
+                    distanceMeters >= 800
+                      ? (distanceMeters / 1609.344).toFixed(1) + ' mi'
+                      : distanceMeters + 'm'
+                  } away`
+                : `${
+                    distanceMeters >= 1000
+                      ? (distanceMeters / 1000).toFixed(1) + ' km'
+                      : distanceMeters + 'm'
+                  } away`
               : permissionStatus.foregroundGranted
               ? 'Locating GPS...'
               : 'Location permission needed'}
@@ -249,7 +262,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
                   ? 'Check In at Gym'
                   : isInside
                   ? 'Start Gym Session (GPS-Verified)'
-                  : 'Check In at Gym (Requires ≤ 300m)'}
+                  : `Check In at Gym (Requires ≤ ${gym.radiusMeters || 300}m)`}
               </Text>
             </TouchableOpacity>
           )}
@@ -259,7 +272,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   card: {
     backgroundColor: theme.cardBackground,
     borderRadius: 20,

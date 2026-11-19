@@ -41,6 +41,7 @@ import {
   subscribeToLocationUpdates,
 } from '../services/locationService';
 import {
+  BugReportInput,
   cloudDatabase,
   FriendshipsOverview,
   GymReportInput,
@@ -112,6 +113,7 @@ interface FitnessContextType {
     coords?: { latitude: number; longitude: number } | null
   ) => Promise<PartneredGym[]>;
   submitGymReport: (input: GymReportInput) => Promise<boolean>;
+  submitBugReport: (input: BugReportInput) => Promise<boolean>;
   refreshFriendships: () => Promise<FriendshipsOverview>;
   searchUsersForFriend: (query: string) => Promise<RemoteLeaderboardUser[]>;
   sendFriendRequestToUser: (
@@ -286,6 +288,13 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const submitGymReport = useCallback(async (input: GymReportInput): Promise<boolean> => {
     return cloudDatabase.submitGymReport({
+      ...input,
+      reporterUserId: userProfileRef.current.id,
+    });
+  }, []);
+
+  const submitBugReport = useCallback(async (input: BugReportInput): Promise<boolean> => {
+    return cloudDatabase.submitBugReport({
       ...input,
       reporterUserId: userProfileRef.current.id,
     });
@@ -1280,6 +1289,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         fetchLeaderboardEntries,
         searchExistingGyms,
         submitGymReport,
+        submitBugReport,
         refreshFriendships,
         searchUsersForFriend,
         sendFriendRequestToUser,

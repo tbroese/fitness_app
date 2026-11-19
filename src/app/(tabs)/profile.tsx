@@ -35,6 +35,7 @@ import { MAX_DISPLAY_NAME_LENGTH, validateDisplayName } from '../../utils/nameVa
 import { AchievementItem, computeAchievements } from '../../utils/achievements';
 import { PRIVACY_POLICY_URL } from '../../constants/config';
 import { AppTheme } from '../../constants/theme';
+import { BugReportCategory } from '../../services/cloud';
 
 type LiftKey = 'squat' | 'bench' | 'deadlift';
 
@@ -62,6 +63,7 @@ export default function ProfileScreen() {
     setGeofenceRadiusMeters,
     syncToCloud,
     isSyncingCloud,
+    submitBugReport,
   } = useFitness();
 
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -80,6 +82,13 @@ export default function ProfileScreen() {
     userProfile.preferredWeightUnit || 'lbs'
   );
   const [prInput, setPrInput] = useState('');
+
+  // Bug report modal state
+  const [bugReportVisible, setBugReportVisible] = useState(false);
+  const [bugCategory, setBugCategory] = useState<BugReportCategory>('ui');
+  const [bugTitle, setBugTitle] = useState('');
+  const [bugDescription, setBugDescription] = useState('');
+  const [submittingBug, setSubmittingBug] = useState(false);
 
   useEffect(() => {
     setFullName(userProfile.fullName);
@@ -206,6 +215,52 @@ export default function ProfileScreen() {
     await updateUserProfile(validation.sanitized);
     setSettingsVisible(false);
     Alert.alert('Saved', 'Your display name has been updated.');
+  };
+
+  const openBugReportModal = () => {
+    setBugCategory('ui');
+    setBugTitle('');
+    setBugDescription('');
+    setSettingsVisible(false);
+    setBugReportVisible(true);
+  };
+
+  const handleSubmitBugReport = async () => {
+    const trimmedTitle = bugTitle.trim();
+    const trimmedDesc = bugDescription.trim();
+    if (!trimmedTitle) {
+      Alert.alert('Summary Required', 'Please enter a short summary of the bug.');
+      return;
+    }
+    if (!trimmedDesc) {
+      Alert.alert('Details Required', 'Please describe what happened or how to reproduce it.');
+      return;
+    }
+
+    setSubmittingBug(true);
+    try {
+      const appVersion = Constants.expoConfig?.version || '1.0.0';
+      const platform = `${Platform.OS} ${String(Platform.Version)}`;
+      const ok = await submitBugReport({
+        category: bugCategory,
+        title: trimmedTitle,
+        description: trimmedDesc,
+        appVersion,
+        platform,
+      });
+
+      if (ok) {
+        setBugReportVisible(false);
+        Alert.alert('Report Sent', 'Thanks for letting us know! Your bug report has been submitted.');
+      } else {
+        Alert.alert(
+          'Could Not Submit',
+          'Please check your internet connection and try again.'
+        );
+      }
+    } finally {
+      setSubmittingBug(false);
+    }
   };
 
   const handleDeleteAccountPress = () => {
@@ -848,6 +903,16 @@ export default function ProfileScreen() {
               </View>
             )}
 
+            {/* Report a Bug Button */}
+            <TouchableOpacity
+              style={styles.privacyBtn}
+              onPress={openBugReportModal}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="bug-outline" size={18} color={theme.textPrimary} />
+              <Text style={styles.privacyBtnText}>Report a Bug</Text>
+            </TouchableOpacity>
+
             {/* Privacy Policy Link */}
             <TouchableOpacity
               style={styles.privacyBtn}
@@ -873,6 +938,111 @@ export default function ProfileScreen() {
                   <Ionicons name="trash-outline" size={18} color={theme.danger} />
                   <Text style={styles.deleteAccountText}>Delete Account</Text>
                 </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Report a Bug Modal */}
+      <Modal
+        visible={bugReportVisible}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setBugReportVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <Ionicons name="bug-outline" size={20} color={theme.primaryLight} />
+                <Text style={styles.modalTitle}>Report a Bug</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setBugReportVisible(false)}
+                style={styles.closeBtn}
+              >
+                <Ionicons name="close" size={22} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.fieldLabel}>Category</Text>
+            <View style={styles.bugCategoryRow}>
+              {(
+                [
+                  { key: 'ui', label: 'UI / Display' },
+                  { key: 'location', label: 'Location' },
+                  { key: 'sync', label: 'Sync / Account' },
+                  { key: 'other', label: 'Other' },
+                ] as const
+              ).map((cat) => {
+                const active = bugCategory === cat.key;
+                return (
+                  <TouchableOpacity
+                    key={cat.key}
+                    style={[
+                      styles.bugCategoryChip,
+                      active && styles.bugCategoryChipActive,
+                    ]}
+                    onPress={() => setBugCategory(cat.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.bugCategoryText,
+                        active && styles.bugCategoryTextActive,
+                      ]}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Summary</Text>
+            <TextInput
+              style={styles.input}
+              value={bugTitle}
+              onChangeText={setBugTitle}
+              placeholder="e.g. Check-in timer freezes on background"
+              placeholderTextColor={theme.textTertiary}
+              maxLength={100}
+              returnKeyType="next"
+            />
+
+            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>What happened?</Text>
+            <TextInput
+              style={[styles.input, styles.bugTextArea]}
+              value={bugDescription}
+              onChangeText={setBugDescription}
+              placeholder="Describe the issue and steps to reproduce..."
+              placeholderTextColor={theme.textTertiary}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              maxLength={1000}
+            />
+
+            <Text style={styles.bugMetaText}>
+              Includes app v{Constants.expoConfig?.version || '1.0.0'} ({Platform.OS}{' '}
+              {String(Platform.Version)})
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.saveBtn, submittingBug && { opacity: 0.7 }]}
+              onPress={handleSubmitBugReport}
+              disabled={submittingBug}
+              activeOpacity={0.85}
+            >
+              {submittingBug ? (
+                <ActivityIndicator color={theme.onPrimary} />
+              ) : (
+                <Text style={styles.saveBtnText}>Submit Bug Report</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1413,5 +1583,40 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: theme.cardBorder,
+  },
+  bugCategoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  bugCategoryChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 10,
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  bugCategoryChipActive: {
+    backgroundColor: theme.primaryMuted,
+    borderColor: theme.primary,
+  },
+  bugCategoryText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.textSecondary,
+  },
+  bugCategoryTextActive: {
+    color: theme.primaryLight,
+    fontWeight: '700',
+  },
+  bugTextArea: {
+    minHeight: 96,
+    paddingTop: 12,
+  },
+  bugMetaText: {
+    fontSize: 11,
+    color: theme.textTertiary,
+    marginTop: 8,
   },
 });

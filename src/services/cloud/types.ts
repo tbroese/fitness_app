@@ -110,6 +110,17 @@ export interface GymReportInput {
   notes?: string;
 }
 
+export type BugReportCategory = 'ui' | 'location' | 'sync' | 'other';
+
+export interface BugReportInput {
+  reporterUserId?: string;
+  category: BugReportCategory;
+  title: string;
+  description: string;
+  appVersion?: string;
+  platform?: string;
+}
+
 export interface CloudDatabaseProvider {
   readonly providerName: string;
   isConfigured(): boolean;
@@ -140,5 +151,6 @@ export interface CloudDatabaseProvider {
   ): Promise<{ success: boolean; autoAccepted?: boolean; message: string }>;
   respondToFriendRequest(requestId: string, accept: boolean): Promise<boolean>;
   submitGymReport(input: GymReportInput): Promise<boolean>;
+  submitBugReport(input: BugReportInput): Promise<boolean>;
   deleteUserAccount(userId: string): Promise<boolean>;
 }

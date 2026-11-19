@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.leaderboard_users (
   best_partner_streak INTEGER NOT NULL DEFAULT 0,
   total_gym_time_minutes INTEGER NOT NULL DEFAULT 0,
   workouts_count INTEGER NOT NULL DEFAULT 0,
-  weekly_goal INTEGER NOT NULL DEFAULT 1,
+  weekly_goal INTEGER NOT NULL DEFAULT 2,
   squat_pr_kg DOUBLE PRECISION NOT NULL DEFAULT 0,
   bench_pr_kg DOUBLE PRECISION NOT NULL DEFAULT 0,
   deadlift_pr_kg DOUBLE PRECISION NOT NULL DEFAULT 0,

@@ -10,6 +10,7 @@ import {
   getDaysRemainingInWeek,
   getIsoWeekId,
 } from '../utils/dateUtils';
+import { getEffectiveGoalForWeek } from '../services/streakManager';
 
 interface WeeklyProgressCardProps {
   weeklyGoal: number;
@@ -17,6 +18,7 @@ interface WeeklyProgressCardProps {
   workouts: WorkoutSession[];
   isReset?: boolean;
   isPartneredGym?: boolean;
+  signupDate?: string;
 }
 
 export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
@@ -25,20 +27,23 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   workouts,
   isReset = false,
   isPartneredGym = false,
+  signupDate,
 }) => {
   const { start } = getWeekStartAndEnd(new Date());
   const daysRemaining = getDaysRemainingInWeek(new Date());
-  const progressPercent = Math.min(100, Math.round((currentWeekWorkouts / weeklyGoal) * 100));
-  const needed = Math.max(0, weeklyGoal - currentWeekWorkouts);
   const currentWeekId = getIsoWeekId(new Date());
+  const effectiveGoal = getEffectiveGoalForWeek(weeklyGoal, currentWeekId, signupDate);
+  const isPartialFirstWeek = effectiveGoal < weeklyGoal;
+  const progressPercent = Math.min(100, Math.round((currentWeekWorkouts / effectiveGoal) * 100));
+  const needed = Math.max(0, effectiveGoal - currentWeekWorkouts);
   const currentWeekCustomCount = workouts.filter(
     (w) => w.weekId === currentWeekId && !w.isPartnered
   ).length;
   const currentWeekPartnerCount = workouts.filter(
     (w) => w.weekId === currentWeekId && Boolean(w.isPartnered)
   ).length;
-  const partnerPercent = Math.min(100, (currentWeekPartnerCount / weeklyGoal) * 100);
-  const customPercent = Math.min(100 - partnerPercent, (currentWeekCustomCount / weeklyGoal) * 100);
+  const partnerPercent = Math.min(100, (currentWeekPartnerCount / effectiveGoal) * 100);
+  const customPercent = Math.min(100 - partnerPercent, (currentWeekCustomCount / effectiveGoal) * 100);
 
   // Generate 7 days for current week (Mon-Sun)
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -68,13 +73,17 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
             {isReset
               ? 'Streak lost for this week. Goal restarts next week.'
               : needed === 0
-                ? '🎉 Goal achieved for this week!'
-                : `${needed} more workout${needed > 1 ? 's' : ''} needed to avoid streak reset`}
+                ? isPartialFirstWeek
+                  ? '🎉 First-week target achieved!'
+                  : '🎉 Goal achieved for this week!'
+                : isPartialFirstWeek
+                  ? `First week: ${needed} more workout${needed > 1 ? 's' : ''} needed (${effectiveGoal} of ${weeklyGoal} days available)`
+                  : `${needed} more workout${needed > 1 ? 's' : ''} needed to avoid streak reset`}
           </Text>
         </View>
         <View style={styles.fractionBox}>
           <Text style={styles.fractionCurrent}>{currentWeekWorkouts}</Text>
-          <Text style={styles.fractionTotal}>/{weeklyGoal}</Text>
+          <Text style={styles.fractionTotal}>/{effectiveGoal}</Text>
         </View>
       </View>
 

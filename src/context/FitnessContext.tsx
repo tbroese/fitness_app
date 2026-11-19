@@ -377,7 +377,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         savedStreak,
         savedPrefs,
         savedWorkouts,
-        new Date()
+        new Date(),
+        activeProfile.createdAt
       );
       await storageService.saveStreakState(evaluatedStreak);
 

@@ -135,6 +135,7 @@ export default function DashboardScreen() {
           workouts={workouts}
           isReset={isReset}
           isPartneredGym={preferences.gymLocation?.isPartnered}
+          signupDate={userProfile.createdAt}
         />
 
         {/* Scheduled Goal Banner (if queued for Monday) */}

@@ -8,6 +8,28 @@ import {
 export const STREAK_LOST_MESSAGE = 'Streak lost. Your new streak will start next week.';
 
 /**
+ * Returns the effective weekly goal for a given ISO week.
+ * During a user's sign-up week, caps the required target to the number of days
+ * available from their sign-up day through Sunday so they aren't penalized for
+ * days before they joined—while still resetting if they miss days they had available.
+ */
+export function getEffectiveGoalForWeek(
+  weeklyGoal: number,
+  weekId: string,
+  signupDate?: Date | string
+): number {
+  if (!signupDate) return weeklyGoal;
+  const parsed = signupDate instanceof Date ? signupDate : new Date(signupDate);
+  if (isNaN(parsed.getTime())) return weeklyGoal;
+  const signupWeekId = getIsoWeekId(parsed);
+  if (weekId !== signupWeekId) return weeklyGoal;
+  const dayOfWeek = parsed.getDay(); // 0 (Sun) .. 6 (Sat)
+  const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek; // 1 (Mon) .. 7 (Sun)
+  const daysAvailableInFirstWeek = 8 - isoDay; // Mon=7 .. Sun=1
+  return Math.max(1, Math.min(weeklyGoal, daysAvailableInFirstWeek));
+}
+
+/**
  * Evaluates whether the streak resets upon crossing week boundaries or loading the app.
  * Rule: If there are less days in the week than needed to reach the goal,
  * the streak resets to 0 and displays:
@@ -18,7 +40,8 @@ export function evaluateWeeklyReset(
   currentState: StreakState,
   preferences: UserPreferences,
   workouts: WorkoutSession[],
-  currentDate: Date = new Date()
+  currentDate: Date = new Date(),
+  signupDate?: Date | string
 ): StreakState {
   const currentWeekId = getIsoWeekId(currentDate);
   const todayStr = formatDateToYYYYMMDD(currentDate);
@@ -51,8 +74,13 @@ export function evaluateWeeklyReset(
 
   // 1. Check if week transitioned from previous week
   if (currentState.lastEvaluatedWeekId && currentState.lastEvaluatedWeekId !== currentWeekId) {
+    const priorWeekTarget = getEffectiveGoalForWeek(
+      preferences.weeklyGoal,
+      currentState.lastEvaluatedWeekId,
+      signupDate
+    );
     const priorWeekWorkouts = workouts.filter((w) => w.weekId === currentState.lastEvaluatedWeekId).length;
-    if (priorWeekWorkouts < preferences.weeklyGoal) {
+    if (priorWeekWorkouts < priorWeekTarget) {
       newStreak = 0;
       isReset = true;
     }
@@ -60,12 +88,17 @@ export function evaluateWeeklyReset(
     const priorPartnerWeekWorkouts = partnerWorkouts.filter(
       (w) => w.weekId === currentState.lastEvaluatedWeekId
     ).length;
-    if (priorPartnerWeekWorkouts < preferences.weeklyGoal) {
+    if (priorPartnerWeekWorkouts < priorWeekTarget) {
       newPartnerStreak = 0;
     }
   }
 
   // 2. Count workouts in current week
+  const currentWeekTarget = getEffectiveGoalForWeek(
+    preferences.weeklyGoal,
+    currentWeekId,
+    signupDate
+  );
   const currentWeekWorkouts = workouts.filter((w) => w.weekId === currentWeekId).length;
   const currentPartnerWeekWorkouts = partnerWorkouts.filter(
     (w) => w.weekId === currentWeekId
@@ -74,8 +107,8 @@ export function evaluateWeeklyReset(
 
   // 3. Mid-week feasibility check:
   // If user has not yet met the weekly goal, check if enough days remain
-  if (currentWeekWorkouts < preferences.weeklyGoal) {
-    const needed = preferences.weeklyGoal - currentWeekWorkouts;
+  if (currentWeekWorkouts < currentWeekTarget) {
+    const needed = currentWeekTarget - currentWeekWorkouts;
     const daysAvailable = getAvailableWorkoutDaysRemaining(currentDate, workedOutToday);
 
     if (daysAvailable < needed) {
@@ -86,8 +119,8 @@ export function evaluateWeeklyReset(
     }
   }
 
-  if (currentPartnerWeekWorkouts < preferences.weeklyGoal) {
-    const partnerNeeded = preferences.weeklyGoal - currentPartnerWeekWorkouts;
+  if (currentPartnerWeekWorkouts < currentWeekTarget) {
+    const partnerNeeded = currentWeekTarget - currentPartnerWeekWorkouts;
     const partnerDaysAvailable = getAvailableWorkoutDaysRemaining(
       currentDate,
       workedOutAtPartnerToday
@@ -103,7 +136,7 @@ export function evaluateWeeklyReset(
     newStreak = 0;
     newPartnerStreak = 0;
     statusMessage = STREAK_LOST_MESSAGE;
-  } else if (currentWeekWorkouts >= preferences.weeklyGoal) {
+  } else if (currentWeekWorkouts >= currentWeekTarget) {
     streakStatus = 'active';
   } else {
     // Has not met goal, but still has enough days remaining
@@ -135,7 +168,8 @@ export function recordCompletedWorkout(
   workoutDate: Date = new Date(),
   durationMinutes: number = 15,
   userId?: string,
-  isPartnered: boolean = false
+  isPartnered: boolean = false,
+  signupDate?: Date | string
 ): {
   success: boolean;
   message: string;
@@ -160,6 +194,22 @@ export function recordCompletedWorkout(
       updatedState: currentState,
       updatedWorkouts: existingWorkouts,
     };
+  }
+
+  // Enforce 180-minute cooldown between workouts
+  if (!isSameDayPartnerUpgrade && existingWorkouts.length > 0) {
+    const lastWorkoutMs = existingWorkouts.reduce(
+      (maxMs, w) => Math.max(maxMs, new Date(w.timestamp).getTime()),
+      0
+    );
+    if (workoutDate.getTime() - lastWorkoutMs < 180 * 60 * 1000) {
+      return {
+        success: false,
+        message: 'A new workout cannot be logged within 180 minutes of your last workout.',
+        updatedState: currentState,
+        updatedWorkouts: existingWorkouts,
+      };
+    }
   }
 
   let newWorkout: WorkoutSession;
@@ -237,7 +287,8 @@ export function recordCompletedWorkout(
     },
     preferences,
     updatedWorkouts,
-    workoutDate
+    workoutDate,
+    signupDate
   );
 
   return {

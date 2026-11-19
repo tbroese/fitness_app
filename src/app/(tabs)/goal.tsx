@@ -22,13 +22,16 @@ import {
 } from '../../services/locationService';
 import { theme } from '../../constants/theme';
 import { PARTNERED_GYMS, PartneredGym } from '../../constants/partneredGyms';
+import { getIsoWeekId } from '../../utils/dateUtils';
 import { FIXED_DWELL_MINUTES, DEFAULT_GEOFENCE_RADIUS_METERS } from '../../types/fitness';
 
 type GymSetupMode = 'existing' | 'custom';
 
 export default function GoalSetupScreen() {
   const {
+    userProfile,
     preferences,
+    workouts,
     permissionStatus,
     setWeeklyGoal,
     scheduleGoalForMonday,
@@ -155,15 +158,21 @@ export default function GoalSetupScreen() {
   }, [scrollTo, t]);
 
   const goalOptions = [1, 2, 3, 4, 5, 6, 7];
+  const currentWeekId = getIsoWeekId(new Date());
+  const signupWeekId = userProfile.createdAt
+    ? getIsoWeekId(new Date(userProfile.createdAt))
+    : currentWeekId;
+  const isFirstWeek = currentWeekId === signupWeekId;
 
   const handleSelectGoal = async (newGoal: number) => {
     if (newGoal === preferences.weeklyGoal) return;
 
     // Check if today is Monday (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
     const isMonday = new Date().getDay() === 1;
+    const isBeforeFirstWorkout = workouts.length === 0;
 
-    // Mid-week adjustment is strictly disallowed: only Cancel or Update Starting Monday
-    if (!isMonday) {
+    // Allow immediate goal setup before first workout; afterward mid-week changes start Monday
+    if (!isMonday && !isBeforeFirstWorkout) {
       Alert.alert(
         'Mid-Week Adjustment Not Allowed',
         `Weekly goals cannot be changed mid-week. You can keep your current goal of ${preferences.weeklyGoal} workout(s) this week or schedule this update to start next Monday.\n\nWould you like to update your goal to ${newGoal} workout(s) starting next Monday?`,
@@ -735,6 +744,15 @@ export default function GoalSetupScreen() {
           <Text style={styles.sectionDesc}>
             Select how many workouts you commit to each week. Goals can only be changed on Monday; mid-week requests take effect the following Monday.
           </Text>
+
+          {isFirstWeek && (
+            <View style={[styles.manualHintBox, { marginBottom: 12 }]}>
+              <Ionicons name="information-circle-outline" size={16} color={theme.primaryLight} />
+              <Text style={styles.manualHintText}>
+                First-week grace: Your target this week is capped to the days remaining since you joined (min 1), and you can set your goal immediately before your first workout.
+              </Text>
+            </View>
+          )}
 
           {/* Goal selection pills */}
           <View style={styles.goalRow}>

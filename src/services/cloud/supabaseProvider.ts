@@ -491,7 +491,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
         address:
           row.address ||
           [row.city, row.state, row.postal_code].filter(Boolean).join(', ') ||
-          'California',
+          'United States',
         latitude: row.latitude,
         longitude: row.longitude,
       }));

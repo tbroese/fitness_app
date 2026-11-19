@@ -730,7 +730,7 @@ export default function ProfileScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.advancedLabel}>Geofence Range</Text>
                     <Text style={styles.advancedSub}>
-                      Decrease from 300m default (50m–300m)
+                      Decrease from 150m default (50m–150m)
                     </Text>
                   </View>
                   <View style={styles.stepperRow}>

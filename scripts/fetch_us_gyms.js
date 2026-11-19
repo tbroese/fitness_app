@@ -40,13 +40,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchStateGyms(stateCode, attempt = 1) {
   const query = `
-[out:json][timeout:60];
+[out:json][timeout:90];
 area["ISO3166-2"="US-${stateCode}"][admin_level=4]->.st;
 (
-  node["leisure"="fitness_centre"](area.st);
-  way["leisure"="fitness_centre"](area.st);
-  node["amenity"="gym"](area.st);
-  way["amenity"="gym"](area.st);
+  nwr["leisure"="fitness_centre"](area.st);
+  nwr["amenity"="gym"](area.st);
+  nwr["sport"~"fitness|weightlifting|powerlifting|bodybuilding|crossfit",i](area.st);
+  nwr["leisure"="sports_centre"]["name"~"gym|fitness|barbell|powerlifting|crossfit|iron",i](area.st);
 );
 out center tags;
 `;

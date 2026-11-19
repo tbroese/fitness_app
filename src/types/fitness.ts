@@ -1,6 +1,6 @@
 export const FIXED_DWELL_MINUTES = 15;
 export const MAX_MANUAL_SESSION_MINUTES = 180;
-export const DEFAULT_GEOFENCE_RADIUS_METERS = 300;
+export const DEFAULT_GEOFENCE_RADIUS_METERS = 150;
 export const MIN_GEOFENCE_RADIUS_METERS = 50;
 
 export type ThemeMode = 'dark' | 'light';
@@ -37,7 +37,7 @@ export interface GymLocation {
   isManual?: boolean; // True for home/manual gyms where GPS tracking isn't used
   latitude: number;
   longitude: number;
-  radiusMeters: number; // Fixed at 300m
+  radiusMeters: number; // Default 150m (50..150m)
   dwellMinutesRequired: number; // Fixed at 15 mins
 }
 
@@ -61,7 +61,7 @@ export interface UserPreferences {
   gymLocation: GymLocation | null;
   dwellDurationMinutes: number; // Fixed at 15 mins
   autoDetectGym: boolean;
-  geofenceRadiusMeters?: number; // 50..300m (default 300m)
+  geofenceRadiusMeters?: number; // 50..150m (default 150m)
   themeMode?: ThemeMode; // 'dark' | 'light'
   distanceUnit?: DistanceUnit; // 'mi' | 'km'
   updatedAt?: string;

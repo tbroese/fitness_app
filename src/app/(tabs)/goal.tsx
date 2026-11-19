@@ -8,11 +8,16 @@ import {
   TextInput,
   Alert,
   Switch,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFitness } from '../../context/FitnessContext';
+import { GymReportType } from '../../services/cloud';
 import { BackgroundLocationModal } from '../../components/BackgroundLocationModal';
 import {
   getCurrentCoordinates,
@@ -40,6 +45,7 @@ export default function GoalSetupScreen() {
     setAutoDetectGym,
     requestAutoTrackingPermission,
     searchExistingGyms,
+    submitGymReport,
     theme,
     distanceUnit,
   } = useFitness();
@@ -92,6 +98,15 @@ export default function GoalSetupScreen() {
   const [existingGymsResults, setExistingGymsResults] = useState<PartneredGym[]>(PARTNERED_GYMS);
   const [isSearchingGyms, setIsSearchingGyms] = useState(false);
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportType, setReportType] = useState<GymReportType>('moved');
+  const [reportGymName, setReportGymName] = useState('');
+  const [reportAddress, setReportAddress] = useState('');
+  const [reportNotes, setReportNotes] = useState('');
+  const [reportCoords, setReportCoords] = useState<{ latitude: number; longitude: number } | null>(
+    null
+  );
+  const [submittingReport, setSubmittingReport] = useState(false);
 
   // State for "Add Custom Gym" (never pre-filled from partnered gyms)
   const [gymName, setGymName] = useState<string>(
@@ -299,6 +314,59 @@ export default function GoalSetupScreen() {
     setDropdownOpen(false);
   };
 
+  const openReportModal = () => {
+    const prefillName = selectedPartnerGym?.name || searchQuery.trim();
+    setReportType(selectedPartnerGym ? 'moved' : 'missing');
+    setReportGymName(prefillName);
+    setReportAddress('');
+    setReportNotes('');
+    setReportCoords(userCoords);
+    setReportModalVisible(true);
+  };
+
+  const handleAttachReportLocation = async () => {
+    const { foregroundGranted } = await requestLocationPermissions(false);
+    if (!foregroundGranted) {
+      Alert.alert('Location Needed', 'Allow location access to attach your current GPS coordinates.');
+      return;
+    }
+    const coords = await getCurrentCoordinates();
+    if (coords) {
+      setReportCoords(coords);
+      setUserCoords(coords);
+    }
+  };
+
+  const handleSubmitReport = async () => {
+    if (!reportGymName.trim()) {
+      Alert.alert('Gym Name Required', 'Please enter the name of the gym.');
+      return;
+    }
+    setSubmittingReport(true);
+    try {
+      const ok = await submitGymReport({
+        gymId: selectedPartnerGym?.id || null,
+        gymName: reportGymName.trim(),
+        reportType,
+        suggestedAddress: reportAddress.trim(),
+        latitude: reportCoords?.latitude ?? null,
+        longitude: reportCoords?.longitude ?? null,
+        notes: reportNotes.trim(),
+      });
+      if (ok) {
+        setReportModalVisible(false);
+        Alert.alert(
+          'Report Submitted',
+          'Thanks! We will review and update the gym directory. You can use Add Custom Gym in the meantime.'
+        );
+      } else {
+        Alert.alert('Upload Failed', 'Could not submit report right now. Please try again.');
+      }
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
+
   const handleSaveGym = async () => {
     if (gymMode === 'existing') {
       const gymToSave =
@@ -325,7 +393,7 @@ export default function GoalSetupScreen() {
         isPartnered: true,
         latitude: gymToSave.latitude,
         longitude: gymToSave.longitude,
-        radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Fixed at 300m
+        radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Default 150m
         dwellMinutesRequired: FIXED_DWELL_MINUTES, // Fixed at 15m
       };
 
@@ -386,7 +454,7 @@ export default function GoalSetupScreen() {
       isPartnered: false,
       latitude: parsedLat,
       longitude: parsedLon,
-      radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Fixed at 300m
+      radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS, // Default 150m
       dwellMinutesRequired: FIXED_DWELL_MINUTES, // Fixed at 15m
     };
 
@@ -589,6 +657,17 @@ export default function GoalSetupScreen() {
                   </View>
                 </View>
               )}
+
+              <TouchableOpacity
+                style={styles.reportLinkBtn}
+                onPress={openReportModal}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="flag-outline" size={14} color={theme.textTertiary} />
+                <Text style={styles.reportLinkText}>
+                  Wrong address or missing gym? Report it
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View>
@@ -839,6 +918,112 @@ export default function GoalSetupScreen() {
           }
         }}
       />
+
+      {/* Report Gym Issue / Missing Gym Modal */}
+      <Modal
+        visible={reportModalVisible}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setReportModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.reportModalOverlay}
+        >
+          <View style={styles.reportModalCard}>
+            <View style={styles.reportModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="flag-outline" size={20} color={theme.primaryLight} />
+                <Text style={styles.reportModalTitle}>Report Gym Issue</Text>
+              </View>
+              <TouchableOpacity onPress={() => setReportModalVisible(false)}>
+                <Ionicons name="close" size={22} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.fieldLabel}>Issue Type</Text>
+            <View style={styles.modeToggleRow}>
+              {(
+                [
+                  { key: 'moved', label: 'Moved' },
+                  { key: 'closed', label: 'Closed' },
+                  { key: 'missing', label: 'Missing' },
+                ] as const
+              ).map((opt) => {
+                const active = reportType === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.modeToggleBtn, active && styles.modeToggleBtnActive]}
+                    onPress={() => setReportType(opt.key)}
+                  >
+                    <Text
+                      style={[
+                        styles.modeToggleText,
+                        active && styles.modeToggleTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.fieldLabel}>Gym Name</Text>
+            <TextInput
+              style={styles.input}
+              value={reportGymName}
+              onChangeText={setReportGymName}
+              placeholder="e.g. Powerhouse Gym Torrance"
+              placeholderTextColor={theme.textTertiary}
+            />
+
+            <Text style={styles.fieldLabel}>Correct / New Address (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={reportAddress}
+              onChangeText={setReportAddress}
+              placeholder="e.g. 5130 W 190th St, Torrance, CA"
+              placeholderTextColor={theme.textTertiary}
+            />
+
+            <TouchableOpacity
+              style={styles.gpsDetectBtn}
+              onPress={handleAttachReportLocation}
+            >
+              <Ionicons name="navigate" size={16} color={theme.primaryLight} />
+              <Text style={styles.gpsDetectText}>
+                {reportCoords
+                  ? `GPS Attached (${reportCoords.latitude.toFixed(4)}, ${reportCoords.longitude.toFixed(4)})`
+                  : 'Attach My Current GPS (Optional)'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.fieldLabel}>Notes (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={reportNotes}
+              onChangeText={setReportNotes}
+              placeholder="Any extra details..."
+              placeholderTextColor={theme.textTertiary}
+            />
+
+            <TouchableOpacity
+              style={styles.saveBtn}
+              onPress={handleSubmitReport}
+              disabled={submittingReport}
+            >
+              {submittingReport ? (
+                <ActivityIndicator color={theme.onPrimary} />
+              ) : (
+                <Text style={styles.saveBtnText}>Submit Report</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1204,5 +1389,42 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 12,
     color: theme.textSecondary,
     lineHeight: 17,
+  },
+  reportLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 4,
+  },
+  reportLinkText: {
+    fontSize: 12,
+    color: theme.textTertiary,
+    fontWeight: '600',
+  },
+  reportModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  reportModalCard: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  reportModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  reportModalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: theme.textPrimary,
   },
 });

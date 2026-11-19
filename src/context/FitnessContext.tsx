@@ -43,6 +43,7 @@ import {
 import {
   cloudDatabase,
   FriendshipsOverview,
+  GymReportInput,
   RemoteLeaderboardUser,
 } from '../services/cloud';
 import { formatDateToYYYYMMDD, getIsoWeekId } from '../utils/dateUtils';
@@ -110,6 +111,7 @@ interface FitnessContextType {
     query: string,
     coords?: { latitude: number; longitude: number } | null
   ) => Promise<PartneredGym[]>;
+  submitGymReport: (input: GymReportInput) => Promise<boolean>;
   refreshFriendships: () => Promise<FriendshipsOverview>;
   searchUsersForFriend: (query: string) => Promise<RemoteLeaderboardUser[]>;
   sendFriendRequestToUser: (
@@ -281,6 +283,13 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     },
     []
   );
+
+  const submitGymReport = useCallback(async (input: GymReportInput): Promise<boolean> => {
+    return cloudDatabase.submitGymReport({
+      ...input,
+      reporterUserId: userProfileRef.current.id,
+    });
+  }, []);
 
   const refreshFriendships = useCallback(async (): Promise<FriendshipsOverview> => {
     const overview = await cloudDatabase.fetchFriendships(userProfileRef.current.id);
@@ -876,7 +885,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await storageService.savePreferences(updatedPrefs);
   };
 
-  // Update Gym Location with configured radius (<= 300m) and 15 min dwell
+  // Update Gym Location with configured radius (<= 150m) and 15 min dwell
   const updateGymLocation = async (location: GymLocation) => {
     const activeRadius =
       preferences.geofenceRadiusMeters ?? DEFAULT_GEOFENCE_RADIUS_METERS;
@@ -1270,6 +1279,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         syncToCloud,
         fetchLeaderboardEntries,
         searchExistingGyms,
+        submitGymReport,
         refreshFriendships,
         searchUsersForFriend,
         sendFriendRequestToUser,

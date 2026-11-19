@@ -97,6 +97,19 @@ export interface AuthSession {
   authUserId?: string;
 }
 
+export type GymReportType = 'moved' | 'closed' | 'missing';
+
+export interface GymReportInput {
+  reporterUserId?: string;
+  gymId?: string | null;
+  gymName: string;
+  reportType: GymReportType;
+  suggestedAddress?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  notes?: string;
+}
+
 export interface CloudDatabaseProvider {
   readonly providerName: string;
   isConfigured(): boolean;
@@ -126,5 +139,6 @@ export interface CloudDatabaseProvider {
     receiverId: string
   ): Promise<{ success: boolean; autoAccepted?: boolean; message: string }>;
   respondToFriendRequest(requestId: string, accept: boolean): Promise<boolean>;
+  submitGymReport(input: GymReportInput): Promise<boolean>;
   deleteUserAccount(userId: string): Promise<boolean>;
 }

@@ -36,6 +36,7 @@ export default function DashboardScreen() {
     requestAutoTrackingPermission,
     setAutoDetectGym,
     startManualGymSession,
+    endManualGymSession,
     signInWithAccount,
   } = useFitness();
 
@@ -160,6 +161,7 @@ export default function DashboardScreen() {
           onRefreshLocation={refreshLocation}
           onToggleAutoTracking={handleToggleAutoTracking}
           onStartManualSession={handleStartManualSession}
+          onEndManualSession={endManualGymSession}
           onOpenGymSettings={() =>
             router.push({
               pathname: '/goal',

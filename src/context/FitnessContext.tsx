@@ -12,6 +12,7 @@ import {
   WeightUnit,
   UserGender,
   FIXED_DWELL_MINUTES,
+  MAX_MANUAL_SESSION_MINUTES,
   DEFAULT_GEOFENCE_RADIUS_METERS,
 } from '../types/fitness';
 import {
@@ -89,6 +90,7 @@ interface FitnessContextType {
   refreshPermissionStatus: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
   requestAutoTrackingPermission: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
   startManualGymSession: () => Promise<{ success: boolean; message: string }>;
+  endManualGymSession: () => Promise<void>;
   syncToCloud: () => Promise<void>;
   fetchLeaderboardEntries: (
     category: 'global' | 'gym' | 'friends'
@@ -357,7 +359,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const perms = await getLocationPermissionStatus();
       setPermissionStatus(perms);
-      if (savedPrefs.gymLocation && savedPrefs.autoDetectGym && perms.backgroundGranted) {
+      if (savedPrefs.gymLocation && !savedPrefs.gymLocation.isManual && savedPrefs.autoDetectGym && perms.backgroundGranted) {
         setupGymGeofence(savedPrefs.gymLocation);
       }
 
@@ -633,6 +635,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Helper to apply GPS proximity check and persist dwell state to AsyncStorage
   const applyProximityDistance = useCallback(async (distance: number, gym: GymLocation) => {
+    if (gym.isManual) return;
     setCurrentDistanceMeters(distance);
     const radius = gym.radiusMeters || DEFAULT_GEOFENCE_RADIUS_METERS;
 
@@ -677,7 +680,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Check current GPS location against gym
   const refreshLocation = useCallback(async () => {
     const gym = preferencesRef.current.gymLocation;
-    if (!gym) return;
+    if (!gym || gym.isManual) return;
     const coords = await getCurrentCoordinates();
     if (!coords) return;
 
@@ -725,7 +728,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     refreshLocation();
 
-    if (preferences.gymLocation) {
+    if (preferences.gymLocation && !preferences.gymLocation.isManual) {
       subscribeToLocationUpdates((coords) => {
         if (!isMounted) return;
         const gym = preferencesRef.current.gymLocation;
@@ -829,7 +832,13 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const isChangingGym =
       preferences.gymLocation?.name !== lockedLocation.name ||
-      Boolean(preferences.gymLocation?.isPartnered) !== Boolean(lockedLocation.isPartnered);
+      Boolean(preferences.gymLocation?.isPartnered) !== Boolean(lockedLocation.isPartnered) ||
+      Boolean(preferences.gymLocation?.isManual) !== Boolean(lockedLocation.isManual);
+
+    if (lockedLocation.isManual) {
+      await stopGymGeofence();
+      setCurrentDistanceMeters(null);
+    }
 
     if (isChangingGym && dwellState.isDwelling) {
       // Finalize any active dwell at the previous gym before switching preferences
@@ -895,7 +904,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return perms;
   }, [refreshLocation]);
 
-  // Layer 2: GPS-Verified Check-In for users on "While using the app" permission
+  // Layer 2: Manual or GPS-Verified Check-In
   const startManualGymSession = useCallback(async (): Promise<{
     success: boolean;
     message: string;
@@ -903,6 +912,18 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const gym = preferencesRef.current.gymLocation;
     if (!gym) {
       return { success: false, message: 'Please set up your gym location first.' };
+    }
+
+    if (gym.isManual) {
+      await storageService.handleBackgroundGeofenceEnter(gym.name, true);
+      const evalResult = await storageService.evaluatePersistedDwellSession();
+      setDwellState(evalResult.dwellSession);
+      setStreakState(evalResult.streakState);
+      setWorkouts(evalResult.workouts);
+      return {
+        success: true,
+        message: `Checked in at ${gym.name}! Stay checked in for ${FIXED_DWELL_MINUTES} minutes to log your workout (auto-checkout after ${MAX_MANUAL_SESSION_MINUTES} mins).`,
+      };
     }
 
     const perms = await getLocationPermissionStatus();
@@ -951,6 +972,23 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       message: `Checked in at ${gym.name}! Stay for ${FIXED_DWELL_MINUTES} minutes to log your workout.`,
     };
   }, []);
+
+  const endManualGymSession = useCallback(async (): Promise<void> => {
+    const exited = await storageService.handleBackgroundGeofenceExit();
+    const [latestStreak, latestWorkouts] = await Promise.all([
+      storageService.getStreakState(),
+      storageService.getWorkouts(),
+    ]);
+    setDwellState(exited);
+    setStreakState(latestStreak);
+    setWorkouts(latestWorkouts);
+    await syncSnapshotToCloud(
+      userProfileRef.current,
+      preferencesRef.current,
+      latestStreak,
+      latestWorkouts
+    );
+  }, [syncSnapshotToCloud]);
 
   // Simulation controls (persists to AsyncStorage and keeps tracking past 15 mins while inside gym)
   const simulateEnterGym = async () => {
@@ -1110,6 +1148,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         refreshPermissionStatus,
         requestAutoTrackingPermission,
         startManualGymSession,
+        endManualGymSession,
         syncToCloud,
         fetchLeaderboardEntries,
         refreshFriendships,

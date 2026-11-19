@@ -15,6 +15,7 @@ interface GymStatusCardProps {
   onOpenGymSettings: () => void;
   onToggleAutoTracking: () => void;
   onStartManualSession: () => void;
+  onEndManualSession?: () => void;
 }
 
 export const GymStatusCard: React.FC<GymStatusCardProps> = ({
@@ -27,6 +28,7 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
   onOpenGymSettings,
   onToggleAutoTracking,
   onStartManualSession,
+  onEndManualSession,
 }) => {
   const isAutoTrackingOn = autoDetectGym && permissionStatus.backgroundGranted;
   const isInside = distanceMeters !== null && gym !== null && distanceMeters <= gym.radiusMeters;
@@ -70,7 +72,9 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
           <View>
             <Text style={styles.gymName}>{gym.name}</Text>
             <Text style={styles.radiusText}>
-              Automatic GPS verification • {dwellRequired} mins stay required
+              {gym.isManual
+                ? `Manual check-in/out • Auto-checkout after 180 mins`
+                : `Automatic GPS verification • ${dwellRequired} mins stay required`}
             </Text>
           </View>
         </View>
@@ -80,77 +84,95 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Proximity / Location State */}
-      <View style={styles.proximityRow}>
-        <View
-          style={[
-            styles.statusDot,
-            isInside ? styles.statusDotInside : styles.statusDotOutside,
-          ]}
-        />
-        <Text style={styles.distanceText}>
-          {distanceMeters !== null
-            ? isInside
-              ? `Inside gym perimeter (${distanceMeters}m)`
-              : `${distanceMeters > 1000 ? (distanceMeters / 1000).toFixed(1) + ' km' : distanceMeters + 'm'} away`
-            : permissionStatus.foregroundGranted
-            ? 'Locating GPS...'
-            : 'Location permission needed'}
-        </Text>
-        <TouchableOpacity onPress={onRefreshLocation} style={styles.refreshIcon}>
-          <Ionicons name="refresh" size={16} color={theme.primaryLight} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Layer 1: Auto-Tracking Toggle (Stays green ONLY if enabled AND "Allow all the time" is granted) */}
-      <TouchableOpacity
-        style={styles.autoTrackRow}
-        onPress={onToggleAutoTracking}
-        activeOpacity={0.85}
-      >
-        <View style={styles.autoTrackLeft}>
+      {/* Proximity / Location State (GPS gyms only) */}
+      {!gym.isManual && (
+        <View style={styles.proximityRow}>
           <View
             style={[
-              styles.autoTrackDot,
-              isAutoTrackingOn
-                ? styles.autoTrackDotOn
-                : styles.autoTrackDotOff,
+              styles.statusDot,
+              isInside ? styles.statusDotInside : styles.statusDotOutside,
             ]}
           />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.autoTrackTitle}>Auto-Tracking (Hands-Free)</Text>
-            <Text style={styles.autoTrackSub}>
-              {isAutoTrackingOn
-                ? 'Active • Tap to switch to manual check-in'
-                : permissionStatus.backgroundGranted
-                ? 'Manual Check-In • Tap to enable Auto-Tracking'
-                : permissionStatus.foregroundGranted
-                ? 'Foreground-only • Tap to select "Allow all the time"'
-                : 'Off • Tap to enable location tracking'}
-            </Text>
-          </View>
+          <Text style={styles.distanceText}>
+            {distanceMeters !== null
+              ? isInside
+                ? `Inside gym perimeter (${distanceMeters}m)`
+                : `${distanceMeters > 1000 ? (distanceMeters / 1000).toFixed(1) + ' km' : distanceMeters + 'm'} away`
+              : permissionStatus.foregroundGranted
+              ? 'Locating GPS...'
+              : 'Location permission needed'}
+          </Text>
+          <TouchableOpacity onPress={onRefreshLocation} style={styles.refreshIcon}>
+            <Ionicons name="refresh" size={16} color={theme.primaryLight} />
+          </TouchableOpacity>
         </View>
-        <Switch
-          value={isAutoTrackingOn}
-          onValueChange={onToggleAutoTracking}
-          trackColor={{ false: theme.cardBorder, true: theme.success }}
-          thumbColor="#FFFFFF"
-        />
-      </TouchableOpacity>
+      )}
+
+      {/* Layer 1: Auto-Tracking Toggle (GPS gyms only) */}
+      {!gym.isManual && (
+        <TouchableOpacity
+          style={styles.autoTrackRow}
+          onPress={onToggleAutoTracking}
+          activeOpacity={0.85}
+        >
+          <View style={styles.autoTrackLeft}>
+            <View
+              style={[
+                styles.autoTrackDot,
+                isAutoTrackingOn
+                  ? styles.autoTrackDotOn
+                  : styles.autoTrackDotOff,
+              ]}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.autoTrackTitle}>Auto-Tracking (Hands-Free)</Text>
+              <Text style={styles.autoTrackSub}>
+                {isAutoTrackingOn
+                  ? 'Active • Tap to switch to manual check-in'
+                  : permissionStatus.backgroundGranted
+                  ? 'Manual Check-In • Tap to enable Auto-Tracking'
+                  : permissionStatus.foregroundGranted
+                  ? 'Foreground-only • Tap to select "Allow all the time"'
+                  : 'Off • Tap to enable location tracking'}
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={isAutoTrackingOn}
+            onValueChange={onToggleAutoTracking}
+            trackColor={{ false: theme.cardBorder, true: theme.success }}
+            thumbColor="#FFFFFF"
+          />
+        </TouchableOpacity>
+      )}
 
       {/* Dwell Timer / In-Progress Workout */}
       {dwellState.completedToday && dwellState.isDwelling ? (
-        <View style={styles.completedBanner}>
-          <Ionicons name="checkmark-done-circle" size={24} color={theme.success} />
-          <View style={{ flex: 1 }}>
-            <View style={styles.completedHeaderRow}>
-              <Text style={styles.completedTitle}>Workout Verified!</Text>
-              <Text style={styles.liveSessionBadge}>{formatGymDuration(dwellState.minutesDwelling)}</Text>
+        <View>
+          <View style={styles.completedBanner}>
+            <Ionicons name="checkmark-done-circle" size={24} color={theme.success} />
+            <View style={{ flex: 1 }}>
+              <View style={styles.completedHeaderRow}>
+                <Text style={styles.completedTitle}>Workout Verified!</Text>
+                <Text style={styles.liveSessionBadge}>{formatGymDuration(dwellState.minutesDwelling)}</Text>
+              </View>
+              <Text style={styles.completedSub}>
+                {gym.isManual
+                  ? '15-min goal reached. Tap Check Out when finished (auto-checkout at 180 mins).'
+                  : '15-min goal reached. Continuing to track your gym time while you stay!'}
+              </Text>
             </View>
-            <Text style={styles.completedSub}>
-              15-min goal reached. Continuing to track your gym time while you stay!
-            </Text>
           </View>
+          {(gym.isManual || !isAutoTrackingOn) && onEndManualSession && (
+            <TouchableOpacity
+              style={styles.manualCheckOutBtn}
+              onPress={onEndManualSession}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="stop-circle-outline" size={18} color={theme.danger} />
+              <Text style={styles.manualCheckOutText}>Check Out of Gym</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : dwellState.completedToday ? (
         <View style={styles.completedBanner}>
@@ -163,35 +185,51 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
           </View>
         </View>
       ) : dwellState.isDwelling ? (
-        <View style={styles.dwellBox}>
-          <View style={styles.dwellHeader}>
-            <Text style={styles.dwellTitle}>Workout in Progress</Text>
-            <Text style={styles.dwellTime}>
-              {dwellState.minutesDwelling} / {dwellRequired} mins
+        <View>
+          <View style={styles.dwellBox}>
+            <View style={styles.dwellHeader}>
+              <Text style={styles.dwellTitle}>Workout in Progress</Text>
+              <Text style={styles.dwellTime}>
+                {dwellState.minutesDwelling} / {dwellRequired} mins
+              </Text>
+            </View>
+            <View style={styles.dwellProgressBg}>
+              <View style={[styles.dwellProgressFill, { width: `${dwellPercent}%` }]} />
+            </View>
+            <Text style={styles.dwellSub}>
+              {gym.isManual
+                ? `Stay checked in for ${Math.max(0, dwellRequired - dwellState.minutesDwelling)} more mins to log your workout.`
+                : `Remain at gym for ${Math.max(0, dwellRequired - dwellState.minutesDwelling)} more mins to automatically log your workout.`}
             </Text>
           </View>
-          <View style={styles.dwellProgressBg}>
-            <View style={[styles.dwellProgressFill, { width: `${dwellPercent}%` }]} />
-          </View>
-          <Text style={styles.dwellSub}>
-            Remain at gym for {Math.max(0, dwellRequired - dwellState.minutesDwelling)} more mins to automatically log your workout.
-          </Text>
+          {(gym.isManual || !isAutoTrackingOn) && onEndManualSession && (
+            <TouchableOpacity
+              style={styles.manualCheckOutBtn}
+              onPress={onEndManualSession}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="stop-circle-outline" size={18} color={theme.danger} />
+              <Text style={styles.manualCheckOutText}>Check Out Early</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <View>
           <View style={styles.dwellBoxIdle}>
             <Ionicons name="hourglass-outline" size={18} color={theme.textTertiary} />
             <Text style={styles.dwellIdleText}>
-              Requires staying inside the gym for {dwellRequired} mins. Logging is verified via GPS.
+              {gym.isManual
+                ? `Requires staying checked in for ${dwellRequired} mins. Auto-checkout after 180 mins.`
+                : `Requires staying inside the gym for ${dwellRequired} mins. Logging is verified via GPS.`}
             </Text>
           </View>
 
-          {/* Layer 2: GPS-Verified Check-In Fallback when Auto-Tracking is Off */}
-          {!isAutoTrackingOn && (
+          {/* Manual Check-In (Home/Manual gym OR GPS gym when Auto-Tracking is Off) */}
+          {(gym.isManual || !isAutoTrackingOn) && (
             <TouchableOpacity
               style={[
                 styles.manualCheckInBtn,
-                isInside && styles.manualCheckInBtnReady,
+                (gym.isManual || isInside) && styles.manualCheckInBtnReady,
               ]}
               onPress={onStartManualSession}
               activeOpacity={0.85}
@@ -199,15 +237,17 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
               <Ionicons
                 name="play-circle-outline"
                 size={18}
-                color={isInside ? theme.onPrimary : theme.primaryLight}
+                color={gym.isManual || isInside ? theme.onPrimary : theme.primaryLight}
               />
               <Text
                 style={[
                   styles.manualCheckInText,
-                  isInside && styles.manualCheckInTextReady,
+                  (gym.isManual || isInside) && styles.manualCheckInTextReady,
                 ]}
               >
-                {isInside
+                {gym.isManual
+                  ? 'Check In at Gym'
+                  : isInside
                   ? 'Start Gym Session (GPS-Verified)'
                   : 'Check In at Gym (Requires ≤ 300m)'}
               </Text>
@@ -493,5 +533,23 @@ const styles = StyleSheet.create({
   },
   manualCheckInTextReady: {
     color: theme.onPrimary,
+  },
+  manualCheckOutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: theme.dangerMuted,
+    borderWidth: 1,
+    borderColor: theme.danger,
+  },
+  manualCheckOutText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.danger,
   },
 });

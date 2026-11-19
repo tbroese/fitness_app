@@ -7,6 +7,7 @@ import {
   DwellSessionState,
   CloudSyncPayload,
   FIXED_DWELL_MINUTES,
+  MAX_MANUAL_SESSION_MINUTES,
   DEFAULT_GEOFENCE_RADIUS_METERS,
 } from '../types/fitness';
 import { formatDateToYYYYMMDD, getIsoWeekId } from '../utils/dateUtils';
@@ -308,6 +309,7 @@ export const storageService = {
       gymName: resolvedGymName,
       completedToday,
       dateString: today,
+      isManualSession: Boolean(prefs.gymLocation?.isManual),
     };
     await this.saveDwellSession(newSession);
     return newSession;
@@ -392,6 +394,66 @@ export const storageService = {
     // User is actively dwelling inside the gym perimeter — compute elapsed time
     const elapsedMs = Date.now() - new Date(session.enteredAt).getTime();
     const elapsedMins = Math.max(0, Math.floor(elapsedMs / (1000 * 60)));
+    const isManualGym = Boolean(prefs.gymLocation?.isManual || session.isManualSession);
+
+    // Auto-checkout manual check-in/check-out sessions after MAX_MANUAL_SESSION_MINUTES (180 mins)
+    if (isManualGym && elapsedMins >= MAX_MANUAL_SESSION_MINUTES) {
+      const cappedMins = MAX_MANUAL_SESSION_MINUTES;
+      let latestStreak = streak;
+      let latestWorkouts = workouts;
+      let completedNow = false;
+
+      if (!alreadyDoneToday || canUpgradeToday) {
+        const gymName = session.gymName || prefs.gymLocation?.name || 'Local Gym';
+        const result = recordCompletedWorkout(
+          streak,
+          prefs,
+          workouts,
+          gymName,
+          new Date(),
+          cappedMins,
+          profile.id,
+          isPartnered
+        );
+        latestStreak = result.updatedState;
+        latestWorkouts = result.updatedWorkouts;
+        completedNow = result.success;
+      } else {
+        latestWorkouts = workouts.map((w) =>
+          w.dateString === today && cappedMins > w.durationMinutes
+            ? {
+                ...w,
+                durationMinutes: cappedMins,
+                updatedAt: new Date().toISOString(),
+                synced: false,
+              }
+            : w
+        );
+      }
+
+      const checkedOutSession: DwellSessionState = {
+        isDwelling: false,
+        enteredAt: undefined,
+        minutesDwelling: cappedMins,
+        gymName: session.gymName || prefs.gymLocation?.name,
+        completedToday: true,
+        dateString: today,
+        isManualSession: false,
+      };
+
+      await Promise.all([
+        this.saveDwellSession(checkedOutSession),
+        this.saveStreakState(latestStreak),
+        this.saveWorkouts(latestWorkouts),
+      ]);
+
+      return {
+        dwellSession: checkedOutSession,
+        streakState: latestStreak,
+        workouts: latestWorkouts,
+        completedNow,
+      };
+    }
 
     // Case 1: Reached 15-minute threshold for the first time today, or upgrading custom -> partnered today
     if (elapsedMins >= FIXED_DWELL_MINUTES && (!alreadyDoneToday || canUpgradeToday)) {

@@ -91,6 +91,11 @@ export default function GoalSetupScreen() {
   const [lon, setLon] = useState<string>(
     isSavedCustomGym && preferences.gymLocation ? String(preferences.gymLocation.longitude) : ''
   );
+  const [isManualCustomGym, setIsManualCustomGym] = useState<boolean>(
+    isSavedCustomGym && preferences.gymLocation
+      ? Boolean(preferences.gymLocation.isManual)
+      : true
+  );
   const [isLocating, setIsLocating] = useState(false);
 
   // Sync selected goal with current active weekly goal
@@ -117,6 +122,7 @@ export default function GoalSetupScreen() {
       setGymName(preferences.gymLocation.name);
       setLat(String(preferences.gymLocation.latitude));
       setLon(String(preferences.gymLocation.longitude));
+      setIsManualCustomGym(Boolean(preferences.gymLocation.isManual));
     }
   }, [preferences.gymLocation]);
 
@@ -270,6 +276,35 @@ export default function GoalSetupScreen() {
       } else {
         Alert.alert('Saved!', `Gym "${newGym.name}" has been configured.`);
       }
+      return;
+    }
+
+    if (isManualCustomGym) {
+      const trimmedName = gymName.trim();
+      if (!trimmedName) {
+        Alert.alert('Gym Name Required', "Please enter a name for your gym (e.g. Alex's Home Gym).");
+        return;
+      }
+
+      const newGym = {
+        id:
+          preferences.gymLocation && !preferences.gymLocation.isPartnered
+            ? preferences.gymLocation.id
+            : `gym_${Date.now()}`,
+        name: trimmedName,
+        isPartnered: false,
+        isManual: true,
+        latitude: 0,
+        longitude: 0,
+        radiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS,
+        dwellMinutesRequired: FIXED_DWELL_MINUTES,
+      };
+
+      await updateGymLocation(newGym);
+      Alert.alert(
+        'Saved!',
+        `Manual gym "${newGym.name}" configured. Use Check In / Check Out on the Streak tab (auto-checkout after 180 mins).`
+      );
       return;
     }
 
@@ -489,47 +524,108 @@ export default function GoalSetupScreen() {
                 style={styles.input}
                 value={gymName}
                 onChangeText={setGymName}
-                placeholder="e.g. Gold's Gym Downtown"
+                placeholder="e.g. Alex's Home Gym"
                 placeholderTextColor={theme.textTertiary}
               />
 
-              {/* Quick detect button */}
-              <TouchableOpacity
-                style={styles.gpsDetectBtn}
-                onPress={handleUseCurrentLocation}
-                disabled={isLocating}
-              >
-                <Ionicons name="navigate" size={16} color={theme.primaryLight} />
-                <Text style={styles.gpsDetectText}>
-                  {isLocating ? 'Detecting GPS...' : 'Set To Current Location'}
-                </Text>
-              </TouchableOpacity>
+              {/* Tracking Method Toggle: Manual Check-In/Out (default, left) vs GPS Location */}
+              <Text style={styles.fieldLabel}>Tracking Method</Text>
+              <View style={[styles.modeToggleRow, { marginBottom: 8 }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.modeToggleBtn,
+                    isManualCustomGym && styles.modeToggleBtnActive,
+                  ]}
+                  onPress={() => setIsManualCustomGym(true)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name="hand-left-outline"
+                    size={15}
+                    color={isManualCustomGym ? theme.onPrimary : theme.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.modeToggleText,
+                      isManualCustomGym && styles.modeToggleTextActive,
+                    ]}
+                  >
+                    Manual Check-In / Out
+                  </Text>
+                </TouchableOpacity>
 
-              {/* Coordinates */}
-              <View style={styles.coordRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Latitude</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={lat}
-                    onChangeText={setLat}
-                    keyboardType="numeric"
-                    placeholder="37.7749"
-                    placeholderTextColor={theme.textTertiary}
+                <TouchableOpacity
+                  style={[
+                    styles.modeToggleBtn,
+                    !isManualCustomGym && styles.modeToggleBtnActive,
+                  ]}
+                  onPress={() => setIsManualCustomGym(false)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name="location-outline"
+                    size={15}
+                    color={!isManualCustomGym ? theme.onPrimary : theme.textSecondary}
                   />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Longitude</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={lon}
-                    onChangeText={setLon}
-                    keyboardType="numeric"
-                    placeholder="-122.4194"
-                    placeholderTextColor={theme.textTertiary}
-                  />
-                </View>
+                  <Text
+                    style={[
+                      styles.modeToggleText,
+                      !isManualCustomGym && styles.modeToggleTextActive,
+                    ]}
+                  >
+                    GPS Location
+                  </Text>
+                </TouchableOpacity>
               </View>
+
+              {isManualCustomGym ? (
+                <View style={styles.manualHintBox}>
+                  <Ionicons name="home-outline" size={16} color={theme.primaryLight} />
+                  <Text style={styles.manualHintText}>
+                    For home gyms and other gyms where location tracking won't work. Check in and check out manually on the Streak tab (auto-checkouts after 180 mins).
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  {/* Quick detect button */}
+                  <TouchableOpacity
+                    style={styles.gpsDetectBtn}
+                    onPress={handleUseCurrentLocation}
+                    disabled={isLocating}
+                  >
+                    <Ionicons name="navigate" size={16} color={theme.primaryLight} />
+                    <Text style={styles.gpsDetectText}>
+                      {isLocating ? 'Detecting GPS...' : 'Set To Current Location'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Coordinates */}
+                  <View style={styles.coordRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>Latitude</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={lat}
+                        onChangeText={setLat}
+                        keyboardType="numeric"
+                        placeholder="37.7749"
+                        placeholderTextColor={theme.textTertiary}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>Longitude</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={lon}
+                        onChangeText={setLon}
+                        keyboardType="numeric"
+                        placeholder="-122.4194"
+                        placeholderTextColor={theme.textTertiary}
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
           )}
 
@@ -539,12 +635,13 @@ export default function GoalSetupScreen() {
             <Text style={styles.saveBtnText}>Save Gym Settings</Text>
           </TouchableOpacity>
 
-          {/* Auto-Tracking Status Toggle */}
-          <TouchableOpacity
-            style={styles.autoTrackRow}
-            onPress={handleToggleAutoTracking}
-            activeOpacity={0.85}
-          >
+          {/* Auto-Tracking Status Toggle (GPS gyms only) */}
+          {!(gymMode === 'custom' && isManualCustomGym) && !preferences.gymLocation?.isManual && (
+            <TouchableOpacity
+              style={styles.autoTrackRow}
+              onPress={handleToggleAutoTracking}
+              activeOpacity={0.85}
+            >
             <View style={{ flex: 1 }}>
               <Text style={styles.autoTrackTitle}>Auto-Tracking (Hands-Free)</Text>
               <Text style={styles.autoTrackSub}>
@@ -564,6 +661,7 @@ export default function GoalSetupScreen() {
               thumbColor="#FFFFFF"
             />
           </TouchableOpacity>
+          )}
         </View>
 
         {/* Section 2: Weekly Goal */}
@@ -1005,5 +1103,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: theme.textSecondary,
     marginTop: 2,
+  },
+  manualHintBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  manualHintText: {
+    flex: 1,
+    fontSize: 12,
+    color: theme.textSecondary,
+    lineHeight: 17,
   },
 });

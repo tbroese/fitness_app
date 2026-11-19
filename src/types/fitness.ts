@@ -1,4 +1,5 @@
 export const FIXED_DWELL_MINUTES = 15;
+export const MAX_MANUAL_SESSION_MINUTES = 180;
 export const DEFAULT_GEOFENCE_RADIUS_METERS = 300;
 
 export type AuthProviderType = 'google' | 'apple' | 'device';
@@ -29,6 +30,7 @@ export interface GymLocation {
   name: string;
   address?: string;
   isPartnered?: boolean;
+  isManual?: boolean; // True for home/manual gyms where GPS tracking isn't used
   latitude: number;
   longitude: number;
   radiusMeters: number; // Fixed at 300m
@@ -80,6 +82,7 @@ export interface DwellSessionState {
   gymName?: string;
   completedToday: boolean;
   dateString?: string; // YYYY-MM-DD of the dwell session
+  isManualSession?: boolean; // True when started via manual check-in/check-out
 }
 
 export interface CloudSyncPayload {

@@ -34,7 +34,7 @@ import {
 import { formatGymDuration } from '../../utils/dateUtils';
 import { MAX_DISPLAY_NAME_LENGTH, validateDisplayName } from '../../utils/nameValidation';
 import { AchievementItem, computeAchievements } from '../../utils/achievements';
-import { PRIVACY_POLICY_URL } from '../../constants/config';
+import { PRIVACY_POLICY_URL, WEBSITE_URL } from '../../constants/config';
 import { AppTheme } from '../../constants/theme';
 import { BugReportCategory } from '../../services/cloud';
 import { triggerSuccessHaptic } from '../../utils/haptics';
@@ -390,6 +390,24 @@ export default function ProfileScreen() {
             <Text style={styles.prLabel}>Deadlift PR</Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={styles.verifyPrBtn}
+          onPress={() => {
+            const params = new URLSearchParams({
+              userId: userProfile.id || '',
+              userName: userProfile.fullName || '',
+              gymId: preferences.gymLocation?.id || '',
+              gymName: preferences.gymLocation?.name || '',
+            });
+            Linking.openURL(`${WEBSITE_URL}/verify-pr?${params.toString()}`);
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="videocam-outline" size={16} color={theme.primaryLight} />
+          <Text style={styles.verifyPrBtnText}>Submit PR Video for Verification</Text>
+          <Ionicons name="open-outline" size={14} color={theme.textTertiary} />
+        </TouchableOpacity>
 
         {/* Athlete Details (Gender & Age - Optional for Leaderboard Filters) */}
         <View style={styles.sectionCard}>
@@ -1686,6 +1704,23 @@ const createStyles = (theme: AppTheme, fontScale: number = 1) => {
     fontSize: 11,
     color: theme.textTertiary,
     marginTop: 8,
+  },
+  verifyPrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.cardBackground,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    borderRadius: 12,
+    paddingVertical: 11,
+    marginBottom: 14,
+  },
+  verifyPrBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.primaryLight,
   },
 });
 };

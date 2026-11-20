@@ -92,7 +92,7 @@ npm test             # node test_streak_logic.js
 ### 3. Supabase & OAuth Setup
 - Run [supabase/schema.sql](supabase/schema.sql) and `supabase/us_gyms/us_gyms_part_01.sql`–`08.sql` in **Supabase → SQL Editor**.
 - Enable **Allow anonymous sign-ins** in **Supabase → Authentication**.
-- Set **Site URL** to `fitnesstracker://auth-callback` (and keep `exp://**` in **Redirect URLs** for local Expo Go dev).
+- Set **Site URL** to `fitnesstracker://auth-callback` / 'exp://192.168.50.188:8081/--/auth-callback' (and keep `exp://**` in **Redirect URLs** for local Expo Go dev).
 
 ### 4. EAS Android Builds
 ```bash

@@ -5,6 +5,7 @@ export const MIN_GEOFENCE_RADIUS_METERS = 50;
 
 export type ThemeMode = 'dark' | 'light';
 export type DistanceUnit = 'mi' | 'km';
+export type FontSizeMode = 'standard' | 'large';
 
 export type AuthProviderType = 'google' | 'apple' | 'device';
 export type WeightUnit = 'lbs' | 'kg';
@@ -64,6 +65,8 @@ export interface UserPreferences {
   geofenceRadiusMeters?: number; // 50..150m (default 150m)
   themeMode?: ThemeMode; // 'dark' | 'light'
   distanceUnit?: DistanceUnit; // 'mi' | 'km'
+  hapticsEnabled?: boolean; // default: true
+  fontSizeMode?: FontSizeMode; // 'standard' | 'large'
   updatedAt?: string;
 }
 

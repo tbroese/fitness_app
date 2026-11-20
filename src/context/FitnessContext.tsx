@@ -14,6 +14,7 @@ import {
   UserGender,
   ThemeMode,
   DistanceUnit,
+  FontSizeMode,
   FIXED_DWELL_MINUTES,
   MAX_MANUAL_SESSION_MINUTES,
   DEFAULT_GEOFENCE_RADIUS_METERS,
@@ -48,6 +49,7 @@ import {
   RemoteLeaderboardUser,
 } from '../services/cloud';
 import { formatDateToYYYYMMDD, getIsoWeekId } from '../utils/dateUtils';
+import { triggerLightHaptic, triggerSuccessHaptic, setHapticsEnabled as applyHapticsEnabled } from '../utils/haptics';
 
 export interface SignInAccountInput {
   fullName: string;
@@ -99,6 +101,11 @@ interface FitnessContextType {
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   distanceUnit: DistanceUnit;
   setDistanceUnit: (unit: DistanceUnit) => Promise<void>;
+  hapticsEnabled: boolean;
+  setHapticsEnabled: (enabled: boolean) => Promise<void>;
+  fontSizeMode: FontSizeMode;
+  fontScale: number;
+  setFontSizeMode: (mode: FontSizeMode) => Promise<void>;
   refreshLocation: () => Promise<void>;
   refreshPermissionStatus: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
   requestAutoTrackingPermission: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
@@ -387,6 +394,8 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
       savedPrefs.geofenceRadiusMeters = resolvedRadius;
       savedPrefs.themeMode = savedPrefs.themeMode || 'dark';
+      savedPrefs.hapticsEnabled = savedPrefs.hapticsEnabled !== false;
+      applyHapticsEnabled(savedPrefs.hapticsEnabled);
       savedPrefs.dwellDurationMinutes = FIXED_DWELL_MINUTES;
       if (savedPrefs.gymLocation) {
         savedPrefs.gymLocation.dwellMinutesRequired = FIXED_DWELL_MINUTES;
@@ -720,6 +729,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setStreakState(evalResult.streakState);
       setWorkouts(evalResult.workouts);
       if (evalResult.completedNow) {
+        triggerSuccessHaptic();
         syncSnapshotToCloud(
           userProfileRef.current,
           preferencesRef.current,
@@ -839,6 +849,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setStreakState(evalResult.streakState);
       setWorkouts(evalResult.workouts);
       if (evalResult.completedNow) {
+        triggerSuccessHaptic();
         syncSnapshotToCloud(
           userProfileRef.current,
           preferencesRef.current,
@@ -1016,6 +1027,32 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await storageService.savePreferences(updatedPrefs);
   }, []);
 
+  const hapticsEnabled = preferences.hapticsEnabled !== false;
+
+  const setHapticsEnabled = useCallback(async (enabled: boolean) => {
+    applyHapticsEnabled(enabled);
+    const updatedPrefs: UserPreferences = {
+      ...preferencesRef.current,
+      hapticsEnabled: enabled,
+    };
+    preferencesRef.current = updatedPrefs;
+    setPreferences(updatedPrefs);
+    await storageService.savePreferences(updatedPrefs);
+  }, []);
+
+  const fontSizeMode: FontSizeMode = preferences.fontSizeMode || 'standard';
+  const fontScale = fontSizeMode === 'large' ? 1.3 : 1;
+
+  const setFontSizeMode = useCallback(async (mode: FontSizeMode) => {
+    const updatedPrefs: UserPreferences = {
+      ...preferencesRef.current,
+      fontSizeMode: mode,
+    };
+    preferencesRef.current = updatedPrefs;
+    setPreferences(updatedPrefs);
+    await storageService.savePreferences(updatedPrefs);
+  }, []);
+
   const refreshPermissionStatus = useCallback(async () => {
     const perms = await getLocationPermissionStatus();
     setPermissionStatus(perms);
@@ -1050,6 +1087,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setDwellState(evalResult.dwellSession);
       setStreakState(evalResult.streakState);
       setWorkouts(evalResult.workouts);
+      triggerLightHaptic();
       return {
         success: true,
         message: `Checked in at ${gym.name}! Stay checked in for ${FIXED_DWELL_MINUTES} minutes to log your workout (auto-checkout after ${MAX_MANUAL_SESSION_MINUTES} mins).`,
@@ -1097,6 +1135,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setDwellState(evalResult.dwellSession);
     setStreakState(evalResult.streakState);
     setWorkouts(evalResult.workouts);
+    triggerLightHaptic();
     return {
       success: true,
       message: `Checked in at ${gym.name}! Stay for ${FIXED_DWELL_MINUTES} minutes to log your workout.`,
@@ -1112,6 +1151,7 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setDwellState(exited);
     setStreakState(latestStreak);
     setWorkouts(latestWorkouts);
+    triggerLightHaptic();
     await syncSnapshotToCloud(
       userProfileRef.current,
       preferencesRef.current,
@@ -1280,6 +1320,11 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setThemeMode,
         distanceUnit,
         setDistanceUnit,
+        hapticsEnabled,
+        setHapticsEnabled,
+        fontSizeMode,
+        fontScale,
+        setFontSizeMode,
         refreshLocation,
         refreshPermissionStatus,
         requestAutoTrackingPermission,

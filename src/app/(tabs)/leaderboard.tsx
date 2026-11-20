@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -350,6 +350,12 @@ export default function LeaderboardScreen() {
     maxAge,
     preferences.gymLocation,
   ]);
+
+  const flatListRef = useRef<FlatList<LeaderboardEntry>>(null);
+  const currentUserIndex = useMemo(
+    () => entries.findIndex((e) => e.isCurrentUser),
+    [entries]
+  );
 
   const handleSendFriendRequest = async (targetUserId: string, targetName: string) => {
     const res = await sendFriendRequestToUser(targetUserId);
@@ -806,12 +812,17 @@ export default function LeaderboardScreen() {
 
         {/* Leaderboard List */}
         <FlatList
+          ref={flatListRef}
           data={entries}
           keyExtractor={(item) => `${selectedCategory}-${item.id}`}
           renderItem={renderLeaderboardItem}
           ListHeaderComponent={renderFriendsHeader}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            currentUserIndex >= 5 && { paddingBottom: 76 },
+          ]}
           keyboardShouldPersistTaps="handled"
+          onScrollToIndexFailed={() => {}}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -820,6 +831,36 @@ export default function LeaderboardScreen() {
             />
           }
         />
+
+        {/* Pinned "You • #Rank" Bar when ranked further down the list */}
+        {currentUserIndex >= 5 && entries[currentUserIndex] && (
+          <TouchableOpacity
+            style={styles.pinnedRankBar}
+            activeOpacity={0.88}
+            onPress={() =>
+              flatListRef.current?.scrollToIndex({
+                index: currentUserIndex,
+                animated: true,
+                viewPosition: 0.3,
+              })
+            }
+          >
+            <View style={styles.pinnedRankLeft}>
+              <View style={styles.pinnedRankBadge}>
+                <Text style={styles.pinnedRankBadgeText}>#{currentUserIndex + 1}</Text>
+              </View>
+              <Text style={styles.pinnedRankText} numberOfLines={1}>
+                You • #{currentUserIndex + 1}
+              </Text>
+            </View>
+            <View style={styles.pinnedRankRight}>
+              <Text style={styles.pinnedRankMetric}>
+                {renderMetricDisplay(entries[currentUserIndex]).value}
+              </Text>
+              <Ionicons name="arrow-up-circle-outline" size={18} color={theme.primaryLight} />
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* More Filters Modal (Gender, lbs/kg, Age Range Slider) */}
@@ -1826,5 +1867,57 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontWeight: '600',
     color: theme.textSecondary,
     marginTop: 2,
+  },
+  pinnedRankBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.cardBackground,
+    borderWidth: 1,
+    borderColor: theme.primaryBorder,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  pinnedRankLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  pinnedRankBadge: {
+    backgroundColor: theme.primaryMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  pinnedRankBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.primaryLight,
+  },
+  pinnedRankText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.textPrimary,
+  },
+  pinnedRankRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pinnedRankMetric: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: theme.primaryLight,
   },
 });

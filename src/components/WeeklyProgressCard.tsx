@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WorkoutSession } from '../types/fitness';
 import { AppTheme } from '../constants/theme';
@@ -20,6 +20,7 @@ interface WeeklyProgressCardProps {
   isReset?: boolean;
   isVerifiedGym?: boolean;
   signupDate?: string;
+  onOpenGoalSettings?: () => void;
 }
 
 export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
@@ -29,9 +30,10 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   isReset = false,
   isVerifiedGym = false,
   signupDate,
+  onOpenGoalSettings,
 }) => {
-  const { theme } = useFitness();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const { theme, fontScale } = useFitness();
+  const styles = useMemo(() => createStyles(theme, fontScale), [theme, fontScale]);
   const { start } = getWeekStartAndEnd(new Date());
   const daysRemaining = getDaysRemainingInWeek(new Date());
   const currentWeekId = getIsoWeekId(new Date());
@@ -70,7 +72,7 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.title}>Weekly Target</Text>
           <Text style={styles.subTitle}>
             {isReset
@@ -84,9 +86,16 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
                   : `${needed} more workout${needed > 1 ? 's' : ''} needed to avoid streak reset`}
           </Text>
         </View>
-        <View style={styles.fractionBox}>
-          <Text style={styles.fractionCurrent}>{currentWeekWorkouts}</Text>
-          <Text style={styles.fractionTotal}>/{effectiveGoal}</Text>
+        <View style={styles.headerRight}>
+          <View style={styles.fractionBox}>
+            <Text style={styles.fractionCurrent}>{currentWeekWorkouts}</Text>
+            <Text style={styles.fractionTotal}>/{effectiveGoal}</Text>
+          </View>
+          {onOpenGoalSettings && (
+            <TouchableOpacity onPress={onOpenGoalSettings} style={styles.editBtn}>
+              <Ionicons name="settings-outline" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -184,7 +193,9 @@ export const WeeklyProgressCard: React.FC<WeeklyProgressCardProps> = ({
   );
 };
 
-const createStyles = (theme: AppTheme) => StyleSheet.create({
+const createStyles = (theme: AppTheme, fontScale: number = 1) => {
+  const s = (size: number) => Math.round(size * fontScale);
+  return StyleSheet.create({
   card: {
     backgroundColor: theme.cardBackground,
     borderRadius: 20,
@@ -203,19 +214,27 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: 8,
     marginBottom: 14,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  editBtn: {
+    padding: 8,
+  },
   title: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: '800',
     color: theme.textPrimary,
   },
   subTitle: {
-    fontSize: 13,
+    fontSize: s(13),
     color: theme.textSecondary,
     marginTop: 4,
-    maxWidth: 220,
-    lineHeight: 18,
+    lineHeight: s(18),
   },
   fractionBox: {
     flexDirection: 'row',
@@ -311,15 +330,16 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderTopColor: theme.cardBorder,
   },
   footerText: {
-    fontSize: 12,
+    fontSize: s(12),
     color: theme.textTertiary,
     fontWeight: '500',
   },
   customNoteText: {
-    fontSize: 11,
+    fontSize: s(11),
     color: theme.primaryLight,
     fontWeight: '600',
     marginTop: 10,
     textAlign: 'center',
   },
 });
+};

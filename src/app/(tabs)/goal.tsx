@@ -48,9 +48,10 @@ export default function GoalSetupScreen() {
     submitGymReport,
     theme,
     distanceUnit,
+    fontScale,
   } = useFitness();
 
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme, fontScale), [theme, fontScale]);
 
   const [bgLocationModalVisible, setBgLocationModalVisible] = useState(false);
 
@@ -70,7 +71,7 @@ export default function GoalSetupScreen() {
 
   const { scrollTo, t } = useLocalSearchParams<{ scrollTo?: string; t?: string }>();
   const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  const pendingScrollToBottomRef = useRef(false);
+  const pendingScrollTargetRef = useRef<'top' | 'bottom' | null>(null);
 
   const initialMatchedVerified = preferences.gymLocation
     ? VERIFIED_GYMS.find(
@@ -164,13 +165,21 @@ export default function GoalSetupScreen() {
     }
   }, [preferences.gymLocation]);
 
-  // Ensure top of page (Gym Location box) is visible when navigated from "Setup Gym Location" box
+  // Scroll to Gym Location (top) or Weekly Goal (bottom) when navigated from Streak tab gear icons
   useEffect(() => {
     if (scrollTo === 'gym') {
-      pendingScrollToBottomRef.current = true;
+      pendingScrollTargetRef.current = 'top';
       const timer = setTimeout(() => {
         scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-        pendingScrollToBottomRef.current = false;
+        pendingScrollTargetRef.current = null;
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+    if (scrollTo === 'goal') {
+      pendingScrollTargetRef.current = 'bottom';
+      const timer = setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+        pendingScrollTargetRef.current = null;
       }, 150);
       return () => clearTimeout(timer);
     }
@@ -476,9 +485,12 @@ export default function GoalSetupScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => {
-          if (pendingScrollToBottomRef.current) {
+          if (pendingScrollTargetRef.current === 'top') {
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-            pendingScrollToBottomRef.current = false;
+            pendingScrollTargetRef.current = null;
+          } else if (pendingScrollTargetRef.current === 'bottom') {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+            pendingScrollTargetRef.current = null;
           }
         }}
       >
@@ -543,6 +555,12 @@ export default function GoalSetupScreen() {
 
           {gymMode === 'existing' ? (
             <View>
+              <View style={[styles.impactHintPill, styles.impactHintPillVerified]}>
+                <Ionicons name="shield-checkmark-outline" size={14} color={theme.successLight} />
+                <Text style={[styles.impactHintText, styles.impactHintTextVerified]}>
+                  Counts on Global, Gym & Friends
+                </Text>
+              </View>
               <Text style={styles.fieldLabel}>Search Existing Gyms</Text>
               <View style={styles.searchInputWrapper}>
                 <Ionicons
@@ -671,6 +689,12 @@ export default function GoalSetupScreen() {
             </View>
           ) : (
             <View>
+              <View style={[styles.impactHintPill, styles.impactHintPillCustom]}>
+                <Ionicons name="people-outline" size={14} color={theme.textSecondary} />
+                <Text style={[styles.impactHintText, styles.impactHintTextCustom]}>
+                  Counts on Personal & Friends only
+                </Text>
+              </View>
               {/* Gym Name */}
               <Text style={styles.fieldLabel}>Gym Name</Text>
               <TextInput
@@ -702,6 +726,9 @@ export default function GoalSetupScreen() {
                       styles.modeToggleText,
                       isManualCustomGym && styles.modeToggleTextActive,
                     ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
                   >
                     Manual Check-In / Out
                   </Text>
@@ -725,6 +752,9 @@ export default function GoalSetupScreen() {
                       styles.modeToggleText,
                       !isManualCustomGym && styles.modeToggleTextActive,
                     ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
                   >
                     GPS Location
                   </Text>
@@ -1028,7 +1058,9 @@ export default function GoalSetupScreen() {
   );
 }
 
-const createStyles = (theme: AppTheme) => StyleSheet.create({
+const createStyles = (theme: AppTheme, fontScale: number = 1) => {
+  const s = (size: number) => Math.round(size * fontScale);
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,
@@ -1060,14 +1092,14 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: '800',
     color: theme.textPrimary,
   },
   sectionDesc: {
-    fontSize: 13,
+    fontSize: s(13),
     color: theme.textSecondary,
-    lineHeight: 18,
+    lineHeight: s(18),
     marginBottom: 16,
   },
   goalRow: {
@@ -1167,11 +1199,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderColor: theme.cardBorder,
   },
   goalSummaryText: {
-    fontSize: 14,
+    fontSize: s(14),
     color: theme.textPrimary,
   },
   goalSummarySub: {
-    fontSize: 12,
+    fontSize: s(12),
     color: theme.textSecondary,
     marginTop: 4,
   },
@@ -1198,7 +1230,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: 9,
+    overflow: 'hidden',
   },
   modeToggleBtnActive: {
     backgroundColor: theme.primary,
@@ -1207,9 +1241,39 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: theme.textSecondary,
+    flexShrink: 1,
   },
   modeToggleTextActive: {
     color: theme.onPrimary,
+  },
+  impactHintPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  impactHintPillVerified: {
+    backgroundColor: theme.successMuted,
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+  },
+  impactHintPillCustom: {
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderColor: theme.cardBorder,
+  },
+  impactHintText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  impactHintTextVerified: {
+    color: theme.successLight,
+  },
+  impactHintTextCustom: {
+    color: theme.textSecondary,
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -1363,12 +1427,12 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderColor: theme.cardBorder,
   },
   autoTrackTitle: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '700',
     color: theme.textPrimary,
   },
   autoTrackSub: {
-    fontSize: 11,
+    fontSize: s(11),
     color: theme.textSecondary,
     marginTop: 2,
   },
@@ -1423,8 +1487,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 6,
   },
   reportModalTitle: {
-    fontSize: 17,
+    fontSize: s(17),
     fontWeight: '800',
     color: theme.textPrimary,
   },
 });
+};

@@ -12,6 +12,7 @@ import {
   Platform,
   ActivityIndicator,
   Linking,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -36,6 +37,7 @@ import { AchievementItem, computeAchievements } from '../../utils/achievements';
 import { PRIVACY_POLICY_URL } from '../../constants/config';
 import { AppTheme } from '../../constants/theme';
 import { BugReportCategory } from '../../services/cloud';
+import { triggerSuccessHaptic } from '../../utils/haptics';
 
 type LiftKey = 'squat' | 'bench' | 'deadlift';
 
@@ -60,13 +62,18 @@ export default function ProfileScreen() {
     setThemeMode,
     distanceUnit,
     setDistanceUnit,
+    hapticsEnabled,
+    setHapticsEnabled,
+    fontSizeMode,
+    fontScale,
+    setFontSizeMode,
     setGeofenceRadiusMeters,
     syncToCloud,
     isSyncingCloud,
     submitBugReport,
   } = useFitness();
 
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme, fontScale), [theme, fontScale]);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<AchievementItem | null>(null);
@@ -180,6 +187,7 @@ export default function ProfileScreen() {
       deadliftPrKg: editingLift === 'deadlift' ? kgValue : undefined,
       preferredWeightUnit: prUnit,
     });
+    triggerSuccessHaptic();
     setEditingLift(null);
   };
 
@@ -721,6 +729,10 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
 
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             {/* Edit Display Name */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.fieldLabel}>Edit Display Name</Text>
@@ -745,23 +757,7 @@ export default function ProfileScreen() {
 
             <View style={styles.divider} />
 
-            {/* Theme Toggle Button */}
-            <TouchableOpacity
-              style={styles.privacyBtn}
-              onPress={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={themeMode === 'dark' ? 'sunny-outline' : 'moon-outline'}
-                size={18}
-                color={theme.textPrimary}
-              />
-              <Text style={styles.privacyBtnText}>
-                {themeMode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Advanced Settings (Geofence Range) */}
+            {/* Advanced Settings (Geofence Range, Units, Haptics, Sync, Version) */}
             <TouchableOpacity
               style={styles.advancedToggleBtn}
               onPress={() => setAdvancedOpen((prev) => !prev)}
@@ -864,7 +860,59 @@ export default function ProfileScreen() {
 
                 <View style={styles.advancedDivider} />
 
-                {/* 3. Manual Cloud Sync */}
+                {/* 3. Haptic Feedback */}
+                <View style={styles.advancedRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.advancedLabel}>Haptic Feedback</Text>
+                    <Text style={styles.advancedSub}>Subtle vibration on tabs, check-ins & PRs</Text>
+                  </View>
+                  <Switch
+                    value={hapticsEnabled}
+                    onValueChange={setHapticsEnabled}
+                    trackColor={{ false: theme.cardBorder, true: theme.primary }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.advancedDivider} />
+
+                {/* 4. Text Size */}
+                <View style={styles.advancedRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.advancedLabel}>Text Size</Text>
+                    <Text style={styles.advancedSub}>Scales readable text without clipping buttons</Text>
+                  </View>
+                  <View style={styles.miniToggleRow}>
+                    {(
+                      [
+                        { key: 'standard', label: 'Std' },
+                        { key: 'large', label: 'Large' },
+                      ] as const
+                    ).map((opt) => {
+                      const active = fontSizeMode === opt.key;
+                      return (
+                        <TouchableOpacity
+                          key={opt.key}
+                          style={[styles.miniToggleBtn, active && styles.miniToggleBtnActive]}
+                          onPress={() => setFontSizeMode(opt.key)}
+                        >
+                          <Text
+                            style={[
+                              styles.miniToggleText,
+                              active && styles.miniToggleTextActive,
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                <View style={styles.advancedDivider} />
+
+                {/* 5. Manual Cloud Sync */}
                 <View style={styles.advancedRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.advancedLabel}>Cloud Sync</Text>
@@ -893,7 +941,7 @@ export default function ProfileScreen() {
 
                 <View style={styles.advancedDivider} />
 
-                {/* 4. App Version */}
+                {/* 6. App Version */}
                 <View style={styles.advancedRow}>
                   <Text style={styles.advancedLabel}>App Version</Text>
                   <Text style={styles.advancedSub}>
@@ -902,6 +950,22 @@ export default function ProfileScreen() {
                 </View>
               </View>
             )}
+
+            {/* Theme Toggle Button */}
+            <TouchableOpacity
+              style={styles.privacyBtn}
+              onPress={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={themeMode === 'dark' ? 'sunny-outline' : 'moon-outline'}
+                size={18}
+                color={theme.textPrimary}
+              />
+              <Text style={styles.privacyBtnText}>
+                {themeMode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              </Text>
+            </TouchableOpacity>
 
             {/* Report a Bug Button */}
             <TouchableOpacity
@@ -940,6 +1004,7 @@ export default function ProfileScreen() {
                 </>
               )}
             </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1052,7 +1117,9 @@ export default function ProfileScreen() {
   );
 }
 
-const createStyles = (theme: AppTheme) => StyleSheet.create({
+const createStyles = (theme: AppTheme, fontScale: number = 1) => {
+  const s = (size: number) => Math.round(size * fontScale);
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,
@@ -1196,14 +1263,14 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: s(17),
     fontWeight: '800',
     color: theme.textPrimary,
   },
   sectionDesc: {
-    fontSize: 12,
+    fontSize: s(12),
     color: theme.textSecondary,
-    lineHeight: 17,
+    lineHeight: s(17),
     marginBottom: 12,
   },
   ageRow: {
@@ -1258,6 +1325,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 400,
+    maxHeight: '85%',
     backgroundColor: theme.cardBackground,
     borderRadius: 22,
     padding: 22,
@@ -1312,7 +1380,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.onPrimary,
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '700',
     color: theme.textPrimary,
     marginTop: 10,
@@ -1414,11 +1482,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   advancedLabel: {
     color: theme.textPrimary,
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: s(13),
   },
   advancedSub: {
     color: theme.textTertiary,
-    fontSize: 11,
+    fontSize: s(11),
     marginTop: 2,
   },
   stepperRow: {
@@ -1537,7 +1605,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
   },
   achievementName: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '800',
     color: theme.textPrimary,
   },
@@ -1545,7 +1613,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.textSecondary,
   },
   achievementStatus: {
-    fontSize: 11,
+    fontSize: s(11),
     color: theme.textTertiary,
     marginTop: 2,
   },
@@ -1569,9 +1637,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     letterSpacing: 0.6,
   },
   achievementModalDesc: {
-    fontSize: 14,
+    fontSize: s(14),
     color: theme.textSecondary,
-    lineHeight: 20,
+    lineHeight: s(20),
     marginBottom: 14,
   },
   achievementProgressRow: {
@@ -1620,3 +1688,4 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginTop: 8,
   },
 });
+};

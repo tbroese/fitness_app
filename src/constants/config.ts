@@ -10,6 +10,8 @@ export const ENABLE_DEBUG_SIMULATOR = false;
 export const PRIVACY_POLICY_URL =
   'https://tbroese.github.io/fitness_app/privacy-policy.html';
 
+export const WEBSITE_URL = 'https://inertialeaderboard.com';
+
 /**
  * Cloud Database Configuration (Supabase Free Tier by default)
  * Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in `.env.local`

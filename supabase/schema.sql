@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS public.gyms (
   latitude DOUBLE PRECISION NOT NULL,
   longitude DOUBLE PRECISION NOT NULL,
   is_verified BOOLEAN NOT NULL DEFAULT TRUE,
+  is_partnered BOOLEAN NOT NULL DEFAULT FALSE,
   source TEXT NOT NULL DEFAULT 'osm',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -159,6 +160,72 @@ CREATE TABLE IF NOT EXISTS public.bug_reports (
 CREATE INDEX IF NOT EXISTS idx_bug_reports_status
   ON public.bug_reports (status, created_at DESC);
 
+-- 7. Partnered Gym Applications (Website /partners -> Stripe Checkout)
+CREATE TABLE IF NOT EXISTS public.partner_applications (
+  id TEXT PRIMARY KEY,
+  gym_id TEXT,
+  gym_name TEXT NOT NULL,
+  address TEXT,
+  city TEXT,
+  state TEXT,
+  owner_name TEXT NOT NULL,
+  owner_email TEXT NOT NULL,
+  phone TEXT,
+  stripe_session_id TEXT,
+  stripe_customer_id TEXT,
+  payment_status TEXT NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'canceled')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_partner_applications_status
+  ON public.partner_applications (payment_status, created_at DESC);
+
+-- 8. Gym Owners Portal Accounts (linked to Supabase Auth + Stripe Subscription)
+CREATE TABLE IF NOT EXISTS public.gym_owners (
+  id TEXT PRIMARY KEY,
+  auth_user_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  full_name TEXT,
+  gym_id TEXT NOT NULL,
+  gym_name TEXT NOT NULL,
+  stripe_customer_id TEXT,
+  subscription_status TEXT NOT NULL DEFAULT 'active' CHECK (subscription_status IN ('active', 'past_due', 'canceled', 'trialing')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gym_owners_auth_user_id
+  ON public.gym_owners (auth_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_gym_owners_gym_id
+  ON public.gym_owners (gym_id);
+
+-- 9. PR Verification Submissions (User submits -> Gym Owner approves/rejects)
+CREATE TABLE IF NOT EXISTS public.pr_verifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  auth_user_id TEXT,
+  user_name TEXT NOT NULL,
+  gym_id TEXT,
+  gym_name TEXT NOT NULL,
+  lift_type TEXT NOT NULL CHECK (lift_type IN ('squat', 'bench', 'deadlift')),
+  weight_kg DOUBLE PRECISION NOT NULL CHECK (weight_kg > 0 AND weight_kg <= 550),
+  video_url TEXT NOT NULL,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  review_notes TEXT,
+  reviewed_by TEXT,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pr_verifications_gym_status
+  ON public.pr_verifications (gym_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_pr_verifications_user_id
+  ON public.pr_verifications (user_id, created_at DESC);
+
 -- ============================================================================
 -- Supabase Row Level Security (RLS) & Table Grants (Production)
 -- ============================================================================
@@ -166,6 +233,8 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT SELECT ON public.gyms TO anon, authenticated;
 GRANT INSERT ON public.gym_reports TO authenticated;
 GRANT INSERT ON public.bug_reports TO authenticated;
+GRANT SELECT ON public.gym_owners TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.pr_verifications TO authenticated;
 GRANT SELECT ON public.leaderboard_users TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.leaderboard_users TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_workouts TO authenticated;
@@ -197,6 +266,59 @@ CREATE POLICY "Users can submit bug reports"
   ON public.bug_reports FOR INSERT
   TO authenticated
   WITH CHECK ((select auth.uid())::text = auth_user_id);
+
+ALTER TABLE public.partner_applications ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.gym_owners ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Gym owners can read own profile" ON public.gym_owners;
+CREATE POLICY "Gym owners can read own profile"
+  ON public.gym_owners FOR SELECT
+  TO authenticated
+  USING ((select auth.uid())::text = auth_user_id);
+
+ALTER TABLE public.pr_verifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can submit own PR verifications" ON public.pr_verifications;
+CREATE POLICY "Users can submit own PR verifications"
+  ON public.pr_verifications FOR INSERT
+  TO authenticated
+  WITH CHECK ((select auth.uid())::text = auth_user_id);
+
+DROP POLICY IF EXISTS "Users can view own PR verifications" ON public.pr_verifications;
+CREATE POLICY "Users can view own PR verifications"
+  ON public.pr_verifications FOR SELECT
+  TO authenticated
+  USING (
+    (select auth.uid())::text = auth_user_id
+    OR EXISTS (
+      SELECT 1 FROM public.gym_owners go
+      WHERE go.auth_user_id = (select auth.uid())::text
+        AND go.gym_id = pr_verifications.gym_id
+        AND go.subscription_status IN ('active', 'trialing')
+    )
+  );
+
+DROP POLICY IF EXISTS "Gym owners can review PR verifications" ON public.pr_verifications;
+CREATE POLICY "Gym owners can review PR verifications"
+  ON public.pr_verifications FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.gym_owners go
+      WHERE go.auth_user_id = (select auth.uid())::text
+        AND go.gym_id = pr_verifications.gym_id
+        AND go.subscription_status IN ('active', 'trialing')
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.gym_owners go
+      WHERE go.auth_user_id = (select auth.uid())::text
+        AND go.gym_id = pr_verifications.gym_id
+        AND go.subscription_status IN ('active', 'trialing')
+    )
+  );
 
 -- leaderboard_users: public leaderboard reads; owners can insert/update/delete only their own row
 DROP POLICY IF EXISTS "Allow public read leaderboard_users" ON public.leaderboard_users;

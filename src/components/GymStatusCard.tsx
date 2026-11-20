@@ -31,8 +31,8 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
   onStartManualSession,
   onEndManualSession,
 }) => {
-  const { theme, distanceUnit } = useFitness();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const { theme, distanceUnit, fontScale } = useFitness();
+  const styles = useMemo(() => createStyles(theme, fontScale), [theme, fontScale]);
   const isAutoTrackingOn = autoDetectGym && permissionStatus.backgroundGranted;
   const isInside = distanceMeters !== null && gym !== null && distanceMeters <= gym.radiusMeters;
   const dwellRequired = FIXED_DWELL_MINUTES;
@@ -72,8 +72,32 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
           <View style={styles.gymIcon}>
             <Ionicons name="barbell" size={20} color={theme.primaryLight} />
           </View>
-          <View>
-            <Text style={styles.gymName}>{gym.name}</Text>
+          <View style={styles.gymTextContainer}>
+            <View style={styles.gymNameRow}>
+              <Text style={styles.gymName}>{gym.name}</Text>
+              <View
+                style={[
+                  styles.gymTypePill,
+                  gym.isVerified ? styles.gymTypePillVerified : styles.gymTypePillCustom,
+                ]}
+              >
+                <Ionicons
+                  name={gym.isVerified ? 'shield-checkmark' : 'person-outline'}
+                  size={10}
+                  color={gym.isVerified ? theme.successLight : theme.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.gymTypePillText,
+                    gym.isVerified
+                      ? styles.gymTypePillTextVerified
+                      : styles.gymTypePillTextCustom,
+                  ]}
+                >
+                  {gym.isVerified ? 'Verified' : 'Custom'}
+                </Text>
+              </View>
+            </View>
             <Text style={styles.radiusText}>
               {gym.isManual
                 ? `Manual check-in/out • Auto-checkout after 180 mins`
@@ -166,8 +190,16 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
             <Ionicons name="checkmark-done-circle" size={24} color={theme.success} />
             <View style={{ flex: 1 }}>
               <View style={styles.completedHeaderRow}>
-                <Text style={styles.completedTitle}>Workout Verified!</Text>
+                <View style={styles.completedTitleGroup}>
+                  <Text style={styles.completedTitle}>Workout Verified!</Text>
+                  <View style={styles.verifiedBadge}>
+                    <Text style={styles.verifiedBadgeText}>Verified</Text>
+                  </View>
+                </View>
                 <Text style={styles.liveSessionBadge}>{formatGymDuration(dwellState.minutesDwelling)}</Text>
+              </View>
+              <View style={styles.dwellProgressBg}>
+                <View style={[styles.dwellProgressFill, styles.dwellProgressFillVerified, { width: '100%' }]} />
               </View>
               <Text style={styles.completedSub}>
                 {gym.isManual
@@ -272,7 +304,9 @@ export const GymStatusCard: React.FC<GymStatusCardProps> = ({
   );
 };
 
-const createStyles = (theme: AppTheme) => StyleSheet.create({
+const createStyles = (theme: AppTheme, fontScale: number = 1) => {
+  const s = (size: number) => Math.round(size * fontScale);
+  return StyleSheet.create({
   card: {
     backgroundColor: theme.cardBackground,
     borderRadius: 20,
@@ -303,19 +337,19 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderColor: theme.primaryBorder,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: '800',
     color: theme.textPrimary,
     marginTop: 8,
   },
   emptySub: {
-    fontSize: 13,
+    fontSize: s(13),
     color: theme.textSecondary,
     textAlign: 'center',
     marginTop: 6,
     marginBottom: 16,
     paddingHorizontal: 16,
-    lineHeight: 18,
+    lineHeight: s(18),
   },
   setupBtn: {
     flexDirection: 'row',
@@ -335,11 +369,16 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 10,
   },
   gymInfo: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  gymTextContainer: {
+    flex: 1,
   },
   gymIcon: {
     width: 42,
@@ -349,13 +388,47 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  gymNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
   gymName: {
-    fontSize: 16,
+    fontSize: s(16),
     fontWeight: '700',
     color: theme.textPrimary,
+    flexShrink: 1,
+  },
+  gymTypePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  gymTypePillVerified: {
+    backgroundColor: theme.successMuted,
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+  },
+  gymTypePillCustom: {
+    backgroundColor: theme.cardBackgroundSubtle,
+    borderColor: theme.cardBorder,
+  },
+  gymTypePillText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  gymTypePillTextVerified: {
+    color: theme.successLight,
+  },
+  gymTypePillTextCustom: {
+    color: theme.textSecondary,
   },
   radiusText: {
-    fontSize: 11,
+    fontSize: s(11),
     color: theme.textSecondary,
     marginTop: 2,
   },
@@ -386,7 +459,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     backgroundColor: theme.warning,
   },
   distanceText: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '600',
     color: theme.textPrimary,
     flex: 1,
@@ -410,8 +483,24 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  completedTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  verifiedBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  verifiedBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: theme.successLight,
+  },
   completedTitle: {
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '700',
     color: theme.successLight,
   },
@@ -421,10 +510,10 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.successLight,
   },
   completedSub: {
-    fontSize: 12,
+    fontSize: s(12),
     color: theme.textSecondary,
     marginTop: 4,
-    lineHeight: 16,
+    lineHeight: s(16),
   },
   dwellBox: {
     backgroundColor: theme.primaryMuted,
@@ -440,7 +529,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   dwellTitle: {
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '700',
     color: theme.primaryLight,
   },
@@ -461,8 +550,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     backgroundColor: theme.brandRed,
     borderRadius: 4,
   },
+  dwellProgressFillVerified: {
+    backgroundColor: theme.success,
+  },
   dwellSub: {
-    fontSize: 11,
+    fontSize: s(11),
     color: theme.textSecondary,
   },
   dwellBoxIdle: {
@@ -566,3 +658,4 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.danger,
   },
 });
+};

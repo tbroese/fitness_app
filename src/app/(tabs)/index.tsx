@@ -39,9 +39,10 @@ export default function DashboardScreen() {
     endManualGymSession,
     signInWithAccount,
     theme,
+    fontScale,
   } = useFitness();
 
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme, fontScale), [theme, fontScale]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [simulatorVisible, setSimulatorVisible] = useState(false);
@@ -139,6 +140,12 @@ export default function DashboardScreen() {
           isReset={isReset}
           isVerifiedGym={preferences.gymLocation?.isVerified}
           signupDate={userProfile.createdAt}
+          onOpenGoalSettings={() =>
+            router.push({
+              pathname: '/goal',
+              params: { scrollTo: 'goal', t: String(Date.now()) },
+            })
+          }
         />
 
         {/* Scheduled Goal Banner (if queued for Monday) */}
@@ -220,7 +227,9 @@ export default function DashboardScreen() {
   );
 }
 
-const createStyles = (theme: AppTheme) => StyleSheet.create({
+const createStyles = (theme: AppTheme, fontScale: number = 1) => {
+  const s = (size: number) => Math.round(size * fontScale);
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,
@@ -296,7 +305,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderColor: 'rgba(245, 158, 11, 0.35)',
   },
   scheduledBannerText: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: '600',
     color: theme.warning,
     flex: 1,
@@ -314,9 +323,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderColor: theme.cardBorder,
   },
   infoText: {
-    fontSize: 12,
+    fontSize: s(12),
     color: theme.textSecondary,
-    lineHeight: 18,
+    lineHeight: s(18),
     fontWeight: '500',
   },
   infoBold: {
@@ -324,3 +333,4 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.textPrimary,
   },
 });
+};

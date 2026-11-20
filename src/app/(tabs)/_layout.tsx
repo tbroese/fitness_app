@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Dimensions, PanResponder, View } from 'react-native';
+import { Animated, Dimensions, PanResponder, Pressable, Text, View } from 'react-native';
 import { Tabs, router, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFitness } from '../../context/FitnessContext';
+import { triggerSelectionHaptic } from '../../utils/haptics';
 
 const TAB_ROUTES = ['/', '/history', '/leaderboard', '/goal', '/profile'] as const;
 
@@ -43,6 +44,7 @@ export default function TabLayout() {
   const animateTabSwitch = (targetRoute: (typeof TAB_ROUTES)[number], direction: 'left' | 'right') => {
     if (isAnimatingRef.current) return;
     isAnimatingRef.current = true;
+    triggerSelectionHaptic();
     const screenWidth = Dimensions.get('window').width;
     const exitTo = direction === 'left' ? -screenWidth : screenWidth;
 
@@ -125,11 +127,62 @@ export default function TabLayout() {
           shadowOpacity: 0.35,
           shadowRadius: 6,
         },
+        tabBarItemStyle: {
+          paddingHorizontal: 2,
+        },
+        tabBarButton: (props) => {
+          const isSelected = Boolean(props.accessibilityState?.selected);
+          return (
+            <Pressable
+              onPress={(e) => {
+                triggerSelectionHaptic();
+                props.onPress?.(e);
+              }}
+              onLongPress={props.onLongPress}
+              accessibilityRole={props.accessibilityRole}
+              accessibilityState={props.accessibilityState}
+              accessibilityLabel={props.accessibilityLabel}
+              testID={props.testID}
+              style={[props.style, { position: 'relative' }]}
+            >
+              {props.children}
+              {isSelected && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 8,
+                    right: 8,
+                    height: 3,
+                    borderTopLeftRadius: 3,
+                    borderTopRightRadius: 3,
+                    backgroundColor: theme.tabBarActive,
+                  }}
+                />
+              )}
+            </Pressable>
+          );
+        },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '700',
           marginBottom: 6,
         },
+        tabBarLabel: ({ color, children }) => (
+          <Text
+            style={{
+              color: typeof color === 'string' ? color : theme.primary,
+              fontSize: 10,
+              fontWeight: '700',
+              marginBottom: 6,
+            }}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {children}
+          </Text>
+        ),
         headerShown: false,
       }}
     >

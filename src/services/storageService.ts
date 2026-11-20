@@ -69,6 +69,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   geofenceRadiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS,
   themeMode: 'dark',
   distanceUnit: 'mi',
+  hapticsEnabled: true,
+  fontSizeMode: 'standard',
 };
 
 export const DEFAULT_STREAK_STATE: StreakState = {

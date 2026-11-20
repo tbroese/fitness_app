@@ -17,8 +17,8 @@ export const StreakCard: React.FC<StreakCardProps> = ({
   weeklyGoal,
   isVerifiedGym,
 }) => {
-  const { theme } = useFitness();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const { theme, fontScale } = useFitness();
+  const styles = useMemo(() => createStyles(theme, fontScale), [theme, fontScale]);
   const isAtRisk = streakState.streakStatus === 'at_risk';
   const isReset = streakState.streakStatus === 'reset';
   const verifiedStreak = streakState.verifiedStreak ?? 0;
@@ -66,7 +66,7 @@ export const StreakCard: React.FC<StreakCardProps> = ({
           </View>
           <View style={styles.splitPill}>
             <Text style={styles.splitLabel}>Verified Gym (Global)</Text>
-            <Text style={styles.splitValue}>{verifiedStreak} 🏟️</Text>
+            <Text style={styles.splitValue}>{verifiedStreak}</Text>
           </View>
         </View>
       )}
@@ -100,7 +100,9 @@ export const StreakCard: React.FC<StreakCardProps> = ({
   );
 };
 
-const createStyles = (theme: AppTheme) => StyleSheet.create({
+const createStyles = (theme: AppTheme, fontScale: number = 1) => {
+  const s = (size: number) => Math.round(size * fontScale);
+  return StyleSheet.create({
   container: {
     backgroundColor: theme.cardBackground,
     borderRadius: 20,
@@ -227,7 +229,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   statusTextActive: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '600',
     color: theme.successLight,
     flex: 1,
@@ -244,7 +246,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderColor: 'rgba(245, 158, 11, 0.3)',
   },
   statusTextWarning: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '600',
     color: theme.warning,
     flex: 1,
@@ -261,10 +263,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   statusTextReset: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '700',
     color: '#F87171',
     flex: 1,
-    lineHeight: 18,
+    lineHeight: s(18),
   },
 });
+};

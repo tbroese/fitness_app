@@ -31,7 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main className="flex-1">{children}</main>
         <footer className="border-t border-zinc-800/80 bg-zinc-950 py-8 text-sm text-zinc-400">
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
-            <p>© {new Date().getFullYear()} Inertia. Built for consistent athletes & gyms.</p>
+            <p>© 2026 Inertia. Built for consistent athletes & gyms.</p>
             <div className="flex items-center gap-5">
               <Link href="/leaderboard" className="hover:text-white">
                 Leaderboard

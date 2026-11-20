@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
@@ -24,7 +24,7 @@ const MODES: { key: BoardMode; title: string }[] = [
   { key: 'total_pr_kg', title: 'Big 3 PR Totals' },
 ];
 
-export default function GymTvDisplayPage() {
+function GymTvDisplayContent() {
   const params = useParams<{ gymId: string }>();
   const gymId = decodeURIComponent(params.gymId || '');
   const [rows, setRows] = useState<DisplayUserRow[]>([]);
@@ -159,5 +159,19 @@ export default function GymTvDisplayPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function GymTvDisplayPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-zinc-950 px-6 py-8 text-zinc-400">
+          Loading gym display...
+        </div>
+      }
+    >
+      <GymTvDisplayContent />
+    </Suspense>
   );
 }

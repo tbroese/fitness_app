@@ -18,7 +18,7 @@ A gym consistency and streak-tracking mobile application built with **React Nati
 
 3. **US Gyms Directory & Flexible Tracking**
    - **22,009+ US Gyms:** Backed by Supabase `public.gyms` (`pg_trgm` search across all 50 states + DC), with silent closest-first distance sorting (`mi away`) when foreground location permission is already granted.
-   - **GPS Geofencing & 15-Minute Dwell:** 300m perimeter with foreground & background (`expo-task-manager`) dwell tracking and prominent background location disclosure.
+   - **GPS Geofencing & 15-Minute Dwell:** 150m perimeter with foreground & background (`expo-task-manager`) dwell tracking and prominent background location disclosure.
    - **Manual Check-In / Check-Out (Home Gyms):** Custom gyms support manual check-in/check-out for home gyms or locations without GPS, with automatic checkout after 180 minutes.
 
 4. **Workout History, Profile & Leaderboards**

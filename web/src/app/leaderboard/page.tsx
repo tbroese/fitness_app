@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 type MetricKey =
-  | 'verified_streak'
-  | 'best_verified_streak'
+  | 'current_streak'
+  | 'best_streak'
   | 'total_gym_time_minutes'
   | 'squat_pr_kg'
   | 'bench_pr_kg'
@@ -17,6 +17,9 @@ interface LeaderboardRow {
   full_name: string;
   user_tag: string;
   gym_name: string | null;
+  is_verified: boolean;
+  current_streak: number;
+  best_streak: number;
   verified_streak: number;
   best_verified_streak: number;
   total_gym_time_minutes: number;
@@ -26,8 +29,8 @@ interface LeaderboardRow {
 }
 
 const METRICS: { key: MetricKey; label: string }[] = [
-  { key: 'verified_streak', label: 'Verified Streak' },
-  { key: 'best_verified_streak', label: 'Best Streak' },
+  { key: 'current_streak', label: 'Current Streak' },
+  { key: 'best_streak', label: 'Best Streak' },
   { key: 'total_gym_time_minutes', label: 'Gym Time' },
   { key: 'total_pr_kg', label: 'Total PRs' },
   { key: 'squat_pr_kg', label: 'Squat' },
@@ -50,7 +53,8 @@ function formatWeight(kg: number, unit: 'lbs' | 'kg'): string {
 export default function LeaderboardPage() {
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [metric, setMetric] = useState<MetricKey>('verified_streak');
+  const [metric, setMetric] = useState<MetricKey>('current_streak');
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [gymFilter, setGymFilter] = useState('');
   const [unit, setUnit] = useState<'lbs' | 'kg'>('lbs');
 
@@ -64,7 +68,7 @@ export default function LeaderboardPage() {
       const { data } = await supabase
         .from('leaderboard_users')
         .select(
-          'id, full_name, user_tag, gym_name, verified_streak, best_verified_streak, total_gym_time_minutes, squat_pr_kg, bench_pr_kg, deadlift_pr_kg'
+          'id, full_name, user_tag, gym_name, is_verified, current_streak, best_streak, verified_streak, best_verified_streak, total_gym_time_minutes, squat_pr_kg, bench_pr_kg, deadlift_pr_kg'
         )
         .limit(200);
 
@@ -81,11 +85,19 @@ export default function LeaderboardPage() {
 
   const sorted = useMemo(() => {
     const q = gymFilter.trim().toLowerCase();
-    const filtered = q
-      ? rows.filter((r) => (r.gym_name || '').toLowerCase().includes(q))
-      : rows;
+    const filtered = rows.filter((r) => {
+      if (verifiedOnly && !r.is_verified) return false;
+      if (q && !(r.gym_name || '').toLowerCase().includes(q)) return false;
+      return true;
+    });
 
     const getVal = (r: LeaderboardRow): number => {
+      if (metric === 'current_streak') {
+        return Number(verifiedOnly ? r.verified_streak || 0 : r.current_streak || 0);
+      }
+      if (metric === 'best_streak') {
+        return Number(verifiedOnly ? r.best_verified_streak || 0 : r.best_streak || 0);
+      }
       if (metric === 'total_pr_kg') {
         return (r.squat_pr_kg || 0) + (r.bench_pr_kg || 0) + (r.deadlift_pr_kg || 0);
       }
@@ -93,14 +105,14 @@ export default function LeaderboardPage() {
     };
 
     return [...filtered].sort((a, b) => getVal(b) - getVal(a));
-  }, [rows, gymFilter, metric]);
+  }, [rows, gymFilter, metric, verifiedOnly]);
 
   const formatMetric = (r: LeaderboardRow): string => {
     switch (metric) {
-      case 'verified_streak':
-        return `${r.verified_streak || 0} 🔥`;
-      case 'best_verified_streak':
-        return `${r.best_verified_streak || 0} 🏆`;
+      case 'current_streak':
+        return `${(verifiedOnly ? r.verified_streak : r.current_streak) || 0} 🔥`;
+      case 'best_streak':
+        return `${(verifiedOnly ? r.best_verified_streak : r.best_streak) || 0} 🏆`;
       case 'total_gym_time_minutes':
         return formatDuration(r.total_gym_time_minutes || 0);
       case 'total_pr_kg':
@@ -125,7 +137,18 @@ export default function LeaderboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setVerifiedOnly((prev) => !prev)}
+            className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
+              verifiedOnly
+                ? 'border-blue-500 bg-blue-600/20 text-blue-300'
+                : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+            }`}
+          >
+            {verifiedOnly ? '✓ Verified Only' : 'Verified'}
+          </button>
           <input
             type="text"
             value={gymFilter}

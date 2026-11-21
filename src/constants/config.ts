@@ -13,6 +13,14 @@ export const PRIVACY_POLICY_URL =
 export const WEBSITE_URL = 'https://inertialeaderboard.com';
 
 /**
+ * Google OAuth Web Client ID (from Google Cloud Console -> Credentials -> Web application)
+ * Used by native @react-native-google-signin/google-signin to obtain an ID token for Supabase.
+ */
+export const GOOGLE_WEB_CLIENT_ID = (
+  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || ''
+).trim();
+
+/**
  * Cloud Database Configuration (Supabase Free Tier by default)
  * Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in `.env.local`
  * or in your EAS environment variables.

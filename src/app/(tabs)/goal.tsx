@@ -44,6 +44,7 @@ export default function GoalSetupScreen() {
     updateGymLocation,
     setAutoDetectGym,
     requestAutoTrackingPermission,
+    refreshPermissionStatus,
     searchExistingGyms,
     submitGymReport,
     theme,
@@ -72,6 +73,7 @@ export default function GoalSetupScreen() {
   const { scrollTo, t } = useLocalSearchParams<{ scrollTo?: string; t?: string }>();
   const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const pendingScrollTargetRef = useRef<'top' | 'bottom' | null>(null);
+  const searchInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const initialMatchedVerified = preferences.gymLocation
     ? VERIFIED_GYMS.find(
@@ -96,7 +98,7 @@ export default function GoalSetupScreen() {
     initialMatchedVerified
   );
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(true);
-  const [existingGymsResults, setExistingGymsResults] = useState<VerifiedGym[]>(VERIFIED_GYMS);
+  const [existingGymsResults, setExistingGymsResults] = useState<VerifiedGym[]>([]);
   const [isSearchingGyms, setIsSearchingGyms] = useState(false);
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [reportModalVisible, setReportModalVisible] = useState(false);
@@ -113,11 +115,13 @@ export default function GoalSetupScreen() {
   const [gymName, setGymName] = useState<string>(
     isSavedCustomGym && preferences.gymLocation ? preferences.gymLocation.name : ''
   );
-  const [lat, setLat] = useState<string>(
-    isSavedCustomGym && preferences.gymLocation ? String(preferences.gymLocation.latitude) : ''
-  );
-  const [lon, setLon] = useState<string>(
-    isSavedCustomGym && preferences.gymLocation ? String(preferences.gymLocation.longitude) : ''
+  const [coordsInput, setCoordsInput] = useState<string>(
+    isSavedCustomGym &&
+      preferences.gymLocation &&
+      !preferences.gymLocation.isManual &&
+      (preferences.gymLocation.latitude !== 0 || preferences.gymLocation.longitude !== 0)
+      ? `${preferences.gymLocation.latitude}, ${preferences.gymLocation.longitude}`
+      : ''
   );
   const [isManualCustomGym, setIsManualCustomGym] = useState<boolean>(
     isSavedCustomGym && preferences.gymLocation
@@ -159,8 +163,12 @@ export default function GoalSetupScreen() {
     } else {
       setGymMode('custom');
       setGymName(preferences.gymLocation.name);
-      setLat(String(preferences.gymLocation.latitude));
-      setLon(String(preferences.gymLocation.longitude));
+      setCoordsInput(
+        !preferences.gymLocation.isManual &&
+          (preferences.gymLocation.latitude !== 0 || preferences.gymLocation.longitude !== 0)
+          ? `${preferences.gymLocation.latitude}, ${preferences.gymLocation.longitude}`
+          : ''
+      );
       setIsManualCustomGym(Boolean(preferences.gymLocation.isManual));
     }
   }, [preferences.gymLocation]);
@@ -250,11 +258,10 @@ export default function GoalSetupScreen() {
 
       const coords = await getCurrentCoordinates();
       if (coords) {
-        setLat(coords.latitude.toFixed(6));
-        setLon(coords.longitude.toFixed(6));
+        setCoordsInput(`${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`);
         Alert.alert(
           'Location Detected',
-          `Captured coordinates:\nLatitude: ${coords.latitude.toFixed(4)}\nLongitude: ${coords.longitude.toFixed(4)}`
+          `Captured coordinates:\n${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`
         );
       } else {
         Alert.alert('Error', 'Could not retrieve your current location.');
@@ -283,6 +290,14 @@ export default function GoalSetupScreen() {
 
   useEffect(() => {
     if (gymMode !== 'existing') return;
+    if (!permissionStatus.foregroundGranted) {
+      setExistingGymsResults([]);
+      return;
+    }
+    if (!userCoords && !searchQuery.trim()) {
+      setExistingGymsResults([]);
+      return;
+    }
     let cancelled = false;
     const timer = setTimeout(async () => {
       setIsSearchingGyms(true);
@@ -302,7 +317,7 @@ export default function GoalSetupScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [gymMode, searchQuery, userCoords, searchExistingGyms]);
+  }, [gymMode, permissionStatus.foregroundGranted, searchQuery, userCoords, searchExistingGyms]);
 
   const filteredVerifiedGyms = existingGymsResults;
 
@@ -321,6 +336,17 @@ export default function GoalSetupScreen() {
     setSelectedVerifiedGym(gym);
     setSearchQuery(gym.name);
     setDropdownOpen(false);
+  };
+
+  const handleRequestLocationForSearch = async () => {
+    const res = await requestLocationPermissions(true);
+    await refreshPermissionStatus();
+    if (res.foregroundGranted) {
+      const coords = await getCurrentCoordinates();
+      if (coords) setUserCoords(coords);
+      setDropdownOpen(true);
+      setTimeout(() => searchInputRef.current?.focus(), 150);
+    }
   };
 
   const openReportModal = () => {
@@ -446,11 +472,25 @@ export default function GoalSetupScreen() {
       return;
     }
 
-    const parsedLat = parseFloat(lat);
-    const parsedLon = parseFloat(lon);
+    const coordParts = coordsInput
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const parsedLat = coordParts.length === 2 ? Number(coordParts[0]) : NaN;
+    const parsedLon = coordParts.length === 2 ? Number(coordParts[1]) : NaN;
 
-    if (isNaN(parsedLat) || isNaN(parsedLon)) {
-      Alert.alert('Invalid Coordinates', 'Please enter valid numerical latitude and longitude.');
+    if (
+      isNaN(parsedLat) ||
+      isNaN(parsedLon) ||
+      parsedLat < -90 ||
+      parsedLat > 90 ||
+      parsedLon < -180 ||
+      parsedLon > 180
+    ) {
+      Alert.alert(
+        'Invalid Coordinates',
+        'Please enter latitude and longitude separated by a comma (e.g. 33.85877, -117.79207).'
+      );
       return;
     }
 
@@ -562,75 +602,96 @@ export default function GoalSetupScreen() {
                 </Text>
               </View>
               <Text style={styles.fieldLabel}>Search Existing Gyms</Text>
-              <View style={styles.searchInputWrapper}>
-                <Ionicons
-                  name="search-outline"
-                  size={18}
-                  color={theme.textSecondary}
-                  style={styles.searchIcon}
-                />
-                <TextInput
-                  style={styles.searchInput}
-                  value={searchQuery}
-                  onChangeText={handleSearchChange}
-                  onFocus={() => setDropdownOpen(true)}
-                  placeholder="Type gym name or city/address..."
-                  placeholderTextColor={theme.textTertiary}
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setSearchQuery('');
-                      setSelectedVerifiedGym(null);
-                      setDropdownOpen(true);
-                    }}
-                    style={styles.clearSearchBtn}
-                  >
-                    <Ionicons name="close-circle" size={18} color={theme.textTertiary} />
-                  </TouchableOpacity>
-                )}
+              {!permissionStatus.foregroundGranted ? (
                 <TouchableOpacity
-                  onPress={() => setDropdownOpen((prev) => !prev)}
-                  style={styles.dropdownToggleBtn}
+                  style={styles.locationPromptBox}
+                  onPress={handleRequestLocationForSearch}
+                  activeOpacity={0.85}
                 >
+                  <Ionicons name="location-outline" size={18} color={theme.primaryLight} />
+                  <Text style={styles.locationPromptText}>
+                    Tap to allow location & search nearby gyms
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.searchInputWrapper}>
                   <Ionicons
-                    name={dropdownOpen ? 'chevron-up' : 'chevron-down'}
+                    name="search-outline"
                     size={18}
                     color={theme.textSecondary}
+                    style={styles.searchIcon}
                   />
-                </TouchableOpacity>
-              </View>
+                  <TextInput
+                    ref={searchInputRef}
+                    style={styles.searchInput}
+                    value={searchQuery}
+                    onChangeText={handleSearchChange}
+                    onFocus={() => setDropdownOpen(true)}
+                    placeholder="Type gym name or city/address..."
+                    placeholderTextColor={theme.textTertiary}
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setSearchQuery('');
+                        setSelectedVerifiedGym(null);
+                        setDropdownOpen(true);
+                      }}
+                      style={styles.clearSearchBtn}
+                    >
+                      <Ionicons name="close-circle" size={18} color={theme.textTertiary} />
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => setDropdownOpen((prev) => !prev)}
+                    style={styles.dropdownToggleBtn}
+                  >
+                    <Ionicons
+                      name={dropdownOpen ? 'chevron-up' : 'chevron-down'}
+                      size={18}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
 
-              {/* Dropdown of matching existing gyms (up to 3 at a time) */}
-              {dropdownOpen && (
+              {/* Dropdown of matching existing gyms (up to 10 results, 3 visible with scroll) */}
+              {permissionStatus.foregroundGranted && dropdownOpen && (
                 <View style={styles.dropdownList}>
                   {filteredVerifiedGyms.length > 0 ? (
-                    filteredVerifiedGyms.slice(0, 3).map((gym) => {
-                      const isSelected = selectedVerifiedGym?.id === gym.id;
-                      return (
-                        <TouchableOpacity
-                          key={gym.id}
-                          style={[
-                            styles.dropdownItem,
-                            isSelected && styles.dropdownItemSelected,
-                          ]}
-                          onPress={() => handleSelectVerifiedGym(gym)}
-                          activeOpacity={0.8}
-                        >
-                          <View style={styles.dropdownItemIcon}>
-                            <Ionicons
-                              name="barbell-outline"
-                              size={15}
-                              color={isSelected ? theme.primaryLight : theme.textSecondary}
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.dropdownGymName} numberOfLines={1}>
-                              {gym.name}
-                            </Text>
-                            <Text style={styles.dropdownGymAddress} numberOfLines={1}>
-                              {userCoords
-                                ? `${(
+                    <ScrollView
+                      style={styles.dropdownScroll}
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator
+                      persistentScrollbar
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {filteredVerifiedGyms.slice(0, 10).map((gym) => {
+                        const isSelected = selectedVerifiedGym?.id === gym.id;
+                        return (
+                          <TouchableOpacity
+                            key={gym.id}
+                            style={[
+                              styles.dropdownItem,
+                              isSelected && styles.dropdownItemSelected,
+                            ]}
+                            onPress={() => handleSelectVerifiedGym(gym)}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.dropdownItemIcon}>
+                              <Ionicons
+                                name="barbell-outline"
+                                size={15}
+                                color={isSelected ? theme.primaryLight : theme.textSecondary}
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.dropdownGymName} numberOfLines={1}>
+                                {gym.name}
+                              </Text>
+                              <Text style={styles.dropdownGymAddress} numberOfLines={1}>
+                                {userCoords
+                                  ? `${(
                                     calculateDistanceMeters(
                                       userCoords.latitude,
                                       userCoords.longitude,
@@ -638,19 +699,20 @@ export default function GoalSetupScreen() {
                                       gym.longitude
                                     ) / (distanceUnit === 'mi' ? 1609.344 : 1000)
                                   ).toFixed(1)} ${distanceUnit} away • ${gym.address}`
-                                : gym.address}
-                            </Text>
-                          </View>
-                          {isSelected && (
-                            <Ionicons
-                              name="checkmark-circle"
-                              size={18}
-                              color={theme.primaryLight}
-                            />
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })
+                                  : gym.address}
+                              </Text>
+                            </View>
+                            {isSelected && (
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={18}
+                                color={theme.primaryLight}
+                              />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
                   ) : (
                     <View style={styles.dropdownEmpty}>
                       <Text style={styles.dropdownEmptyText}>
@@ -783,30 +845,17 @@ export default function GoalSetupScreen() {
                   </TouchableOpacity>
 
                   {/* Coordinates */}
-                  <View style={styles.coordRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Latitude</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={lat}
-                        onChangeText={setLat}
-                        keyboardType="numeric"
-                        placeholder="37.7749"
-                        placeholderTextColor={theme.textTertiary}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Longitude</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={lon}
-                        onChangeText={setLon}
-                        keyboardType="numeric"
-                        placeholder="-122.4194"
-                        placeholderTextColor={theme.textTertiary}
-                      />
-                    </View>
-                  </View>
+                  <Text style={styles.fieldLabel}>Coordinates (Latitude, Longitude)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={coordsInput}
+                    onChangeText={setCoordsInput}
+                    keyboardType="numbers-and-punctuation"
+                    placeholder="33.85877, -117.79207"
+                    placeholderTextColor={theme.textTertiary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
                 </View>
               )}
             </View>
@@ -825,25 +874,25 @@ export default function GoalSetupScreen() {
               onPress={handleToggleAutoTracking}
               activeOpacity={0.85}
             >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.autoTrackTitle}>Auto-Tracking (Hands-Free)</Text>
-              <Text style={styles.autoTrackSub}>
-                {isAutoTrackingOn
-                  ? 'Active • Tap to switch to manual check-in'
-                  : permissionStatus.backgroundGranted
-                  ? 'Manual Check-In • Tap to enable Auto-Tracking'
-                  : permissionStatus.foregroundGranted
-                  ? 'Foreground-only • Tap to select "Allow all the time"'
-                  : 'Off • Tap to enable location tracking'}
-              </Text>
-            </View>
-            <Switch
-              value={isAutoTrackingOn}
-              onValueChange={handleToggleAutoTracking}
-              trackColor={{ false: theme.cardBorder, true: theme.success }}
-              thumbColor="#FFFFFF"
-            />
-          </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.autoTrackTitle}>Auto-Tracking (Hands-Free)</Text>
+                <Text style={styles.autoTrackSub}>
+                  {isAutoTrackingOn
+                    ? 'Active • Tap to switch to manual check-in'
+                    : permissionStatus.backgroundGranted
+                      ? 'Manual Check-In • Tap to enable Auto-Tracking'
+                      : permissionStatus.foregroundGranted
+                        ? 'Foreground-only • Tap to select "Allow all the time"'
+                        : 'Off • Tap to enable location tracking'}
+                </Text>
+              </View>
+              <Switch
+                value={isAutoTrackingOn}
+                onValueChange={handleToggleAutoTracking}
+                trackColor={{ false: theme.cardBorder, true: theme.success }}
+                thumbColor="#FFFFFF"
+              />
+            </TouchableOpacity>
           )}
         </View>
 
@@ -1061,435 +1110,455 @@ export default function GoalSetupScreen() {
 const createStyles = (theme: AppTheme, fontScale: number = 1) => {
   const s = (size: number) => Math.round(size * fontScale);
   return StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  sectionCard: {
-    backgroundColor: theme.cardBackground,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 6,
-  },
-  sectionTitle: {
-    fontSize: s(18),
-    fontWeight: '800',
-    color: theme.textPrimary,
-  },
-  sectionDesc: {
-    fontSize: s(13),
-    color: theme.textSecondary,
-    lineHeight: s(18),
-    marginBottom: 16,
-  },
-  goalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  goalPill: {
-    flex: 1,
-    marginHorizontal: 3,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: theme.cardBackgroundSubtle,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-  },
-  goalPillSelected: {
-    backgroundColor: theme.primary,
-    borderColor: theme.primary,
-  },
-  goalPillPending: {
-    borderColor: theme.warning,
-    borderWidth: 1.5,
-    backgroundColor: theme.warningMuted,
-  },
-  goalPillText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: theme.textPrimary,
-  },
-  goalPillTextSelected: {
-    color: theme.onPrimary,
-  },
-  goalPillTextPending: {
-    color: theme.warning,
-  },
-  goalPillSub: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: theme.textSecondary,
-    marginTop: 2,
-  },
-  goalPillSubSelected: {
-    color: 'rgba(255, 255, 255, 0.85)',
-  },
-  goalPillSubPending: {
-    color: theme.warning,
-    fontWeight: '700',
-  },
-  pendingBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: theme.warningMuted,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-  },
-  pendingTextCol: {
-    flex: 1,
-    marginRight: 10,
-  },
-  pendingHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  pendingTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.warning,
-  },
-  pendingSub: {
-    fontSize: 11,
-    color: theme.textSecondary,
-    marginTop: 2,
-    lineHeight: 15,
-  },
-  cancelPendingBtn: {
-    backgroundColor: 'rgba(245, 158, 11, 0.25)',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  cancelPendingBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: theme.warning,
-  },
-  goalSummaryBox: {
-    backgroundColor: theme.cardBackgroundSubtle,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-  },
-  goalSummaryText: {
-    fontSize: s(14),
-    color: theme.textPrimary,
-  },
-  goalSummarySub: {
-    fontSize: s(12),
-    color: theme.textSecondary,
-    marginTop: 4,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.textPrimary,
-    marginTop: 14,
-    marginBottom: 6,
-  },
-  modeToggleRow: {
-    flexDirection: 'row',
-    backgroundColor: theme.inputBackground,
-    borderRadius: 12,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-    gap: 6,
-  },
-  modeToggleBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 9,
-    overflow: 'hidden',
-  },
-  modeToggleBtnActive: {
-    backgroundColor: theme.primary,
-  },
-  modeToggleText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.textSecondary,
-    flexShrink: 1,
-  },
-  modeToggleTextActive: {
-    color: theme.onPrimary,
-  },
-  impactHintPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-    marginTop: 12,
-  },
-  impactHintPillVerified: {
-    backgroundColor: theme.successMuted,
-    borderColor: 'rgba(16, 185, 129, 0.35)',
-  },
-  impactHintPillCustom: {
-    backgroundColor: theme.cardBackgroundSubtle,
-    borderColor: theme.cardBorder,
-  },
-  impactHintText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  impactHintTextVerified: {
-    color: theme.successLight,
-  },
-  impactHintTextCustom: {
-    color: theme.textSecondary,
-  },
-  searchInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.inputBackground,
-    borderWidth: 1,
-    borderColor: theme.inputBorder,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: theme.textPrimary,
-  },
-  clearSearchBtn: {
-    padding: 4,
-  },
-  dropdownToggleBtn: {
-    padding: 4,
-    marginLeft: 2,
-  },
-  dropdownList: {
-    marginTop: 8,
-    backgroundColor: theme.inputBackground,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.inputBorder,
-    overflow: 'hidden',
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.cardBorder,
-  },
-  dropdownItemSelected: {
-    backgroundColor: theme.primaryMuted,
-  },
-  dropdownItemIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: theme.cardBackgroundSubtle,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dropdownGymName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.textPrimary,
-  },
-  dropdownGymAddress: {
-    fontSize: 11,
-    color: theme.textSecondary,
-    marginTop: 1,
-  },
-  dropdownEmpty: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  dropdownEmptyText: {
-    fontSize: 13,
-    color: theme.textTertiary,
-  },
-  selectedVerifiedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: theme.successMuted,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.35)',
-  },
-  selectedVerifiedName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.textPrimary,
-  },
-  selectedVerifiedAddress: {
-    fontSize: 12,
-    color: theme.textSecondary,
-    marginTop: 2,
-  },
-  input: {
-    backgroundColor: theme.inputBackground,
-    borderWidth: 1,
-    borderColor: theme.inputBorder,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: theme.textPrimary,
-  },
-  gpsDetectBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: theme.primaryMuted,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: theme.primaryBorder,
-  },
-  gpsDetectText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.primaryLight,
-  },
-  coordRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  saveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: theme.primary,
-    paddingVertical: 14,
-    borderRadius: 14,
-    marginTop: 22,
-  },
-  saveBtnText: {
-    color: theme.onPrimary,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  autoTrackRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginTop: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: theme.cardBackgroundSubtle,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-  },
-  autoTrackTitle: {
-    fontSize: s(13),
-    fontWeight: '700',
-    color: theme.textPrimary,
-  },
-  autoTrackSub: {
-    fontSize: s(11),
-    color: theme.textSecondary,
-    marginTop: 2,
-  },
-  manualHintBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: theme.cardBackgroundSubtle,
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 4,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-  },
-  manualHintText: {
-    flex: 1,
-    fontSize: 12,
-    color: theme.textSecondary,
-    lineHeight: 17,
-  },
-  reportLinkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 10,
-    paddingVertical: 4,
-  },
-  reportLinkText: {
-    fontSize: 12,
-    color: theme.textTertiary,
-    fontWeight: '600',
-  },
-  reportModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.72)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  reportModalCard: {
-    backgroundColor: theme.cardBackground,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-  },
-  reportModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  reportModalTitle: {
-    fontSize: s(17),
-    fontWeight: '800',
-    color: theme.textPrimary,
-  },
-});
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    container: {
+      flex: 1,
+    },
+    content: {
+      padding: 16,
+      paddingBottom: 40,
+    },
+    sectionCard: {
+      backgroundColor: theme.cardBackground,
+      borderRadius: 20,
+      padding: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 6,
+    },
+    sectionTitle: {
+      fontSize: s(18),
+      fontWeight: '800',
+      color: theme.textPrimary,
+    },
+    sectionDesc: {
+      fontSize: s(13),
+      color: theme.textSecondary,
+      lineHeight: s(18),
+      marginBottom: 16,
+    },
+    goalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+    },
+    goalPill: {
+      flex: 1,
+      marginHorizontal: 3,
+      paddingVertical: 12,
+      alignItems: 'center',
+      backgroundColor: theme.cardBackgroundSubtle,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.cardBorder,
+    },
+    goalPillSelected: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    goalPillPending: {
+      borderColor: theme.warning,
+      borderWidth: 1.5,
+      backgroundColor: theme.warningMuted,
+    },
+    goalPillText: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: theme.textPrimary,
+    },
+    goalPillTextSelected: {
+      color: theme.onPrimary,
+    },
+    goalPillTextPending: {
+      color: theme.warning,
+    },
+    goalPillSub: {
+      fontSize: 9,
+      fontWeight: '600',
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    goalPillSubSelected: {
+      color: 'rgba(255, 255, 255, 0.85)',
+    },
+    goalPillSubPending: {
+      color: theme.warning,
+      fontWeight: '700',
+    },
+    pendingBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: theme.warningMuted,
+      borderRadius: 12,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.35)',
+    },
+    pendingTextCol: {
+      flex: 1,
+      marginRight: 10,
+    },
+    pendingHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    pendingTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.warning,
+    },
+    pendingSub: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      marginTop: 2,
+      lineHeight: 15,
+    },
+    cancelPendingBtn: {
+      backgroundColor: 'rgba(245, 158, 11, 0.25)',
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+    },
+    cancelPendingBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.warning,
+    },
+    goalSummaryBox: {
+      backgroundColor: theme.cardBackgroundSubtle,
+      borderRadius: 12,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: theme.cardBorder,
+    },
+    goalSummaryText: {
+      fontSize: s(14),
+      color: theme.textPrimary,
+    },
+    goalSummarySub: {
+      fontSize: s(12),
+      color: theme.textSecondary,
+      marginTop: 4,
+    },
+    fieldLabel: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.textPrimary,
+      marginTop: 14,
+      marginBottom: 6,
+    },
+    modeToggleRow: {
+      flexDirection: 'row',
+      backgroundColor: theme.inputBackground,
+      borderRadius: 12,
+      padding: 4,
+      borderWidth: 1,
+      borderColor: theme.cardBorder,
+      gap: 6,
+    },
+    modeToggleBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      paddingHorizontal: 8,
+      borderRadius: 9,
+      overflow: 'hidden',
+    },
+    modeToggleBtnActive: {
+      backgroundColor: theme.primary,
+    },
+    modeToggleText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.textSecondary,
+      flexShrink: 1,
+    },
+    modeToggleTextActive: {
+      color: theme.onPrimary,
+    },
+    impactHintPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+      borderWidth: 1,
+      marginTop: 12,
+    },
+    impactHintPillVerified: {
+      backgroundColor: theme.successMuted,
+      borderColor: 'rgba(16, 185, 129, 0.35)',
+    },
+    impactHintPillCustom: {
+      backgroundColor: theme.cardBackgroundSubtle,
+      borderColor: theme.cardBorder,
+    },
+    impactHintText: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    impactHintTextVerified: {
+      color: theme.successLight,
+    },
+    impactHintTextCustom: {
+      color: theme.textSecondary,
+    },
+    searchInputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.inputBackground,
+      borderWidth: 1,
+      borderColor: theme.inputBorder,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+    },
+    searchIcon: {
+      marginRight: 8,
+    },
+    searchInput: {
+      flex: 1,
+      paddingVertical: 10,
+      fontSize: 15,
+      color: theme.textPrimary,
+    },
+    clearSearchBtn: {
+      padding: 4,
+    },
+    dropdownToggleBtn: {
+      padding: 4,
+      marginLeft: 2,
+    },
+    dropdownList: {
+      marginTop: 8,
+      backgroundColor: theme.inputBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.inputBorder,
+      overflow: 'hidden',
+    },
+    dropdownScroll: {
+      maxHeight: 186,
+    },
+    dropdownItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.cardBorder,
+    },
+    dropdownItemSelected: {
+      backgroundColor: theme.primaryMuted,
+    },
+    dropdownItemIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: theme.cardBackgroundSubtle,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    dropdownGymName: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.textPrimary,
+    },
+    dropdownGymAddress: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      marginTop: 1,
+    },
+    dropdownEmpty: {
+      padding: 16,
+      alignItems: 'center',
+    },
+    dropdownEmptyText: {
+      fontSize: 13,
+      color: theme.textTertiary,
+    },
+    selectedVerifiedCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 12,
+      padding: 14,
+      borderRadius: 12,
+      backgroundColor: theme.successMuted,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.35)',
+    },
+    selectedVerifiedName: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: theme.textPrimary,
+    },
+    selectedVerifiedAddress: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    input: {
+      backgroundColor: theme.inputBackground,
+      borderWidth: 1,
+      borderColor: theme.inputBorder,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      fontSize: 15,
+      color: theme.textPrimary,
+    },
+    gpsDetectBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: theme.primaryMuted,
+      paddingVertical: 12,
+      borderRadius: 12,
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor: theme.primaryBorder,
+    },
+    gpsDetectText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.primaryLight,
+    },
+    coordRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    saveBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: theme.primary,
+      paddingVertical: 14,
+      borderRadius: 14,
+      marginTop: 22,
+    },
+    saveBtnText: {
+      color: theme.onPrimary,
+      fontWeight: '700',
+      fontSize: 15,
+    },
+    autoTrackRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      marginTop: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      backgroundColor: theme.cardBackgroundSubtle,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.cardBorder,
+    },
+    autoTrackTitle: {
+      fontSize: s(13),
+      fontWeight: '700',
+      color: theme.textPrimary,
+    },
+    autoTrackSub: {
+      fontSize: s(11),
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    manualHintBox: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      backgroundColor: theme.cardBackgroundSubtle,
+      borderRadius: 12,
+      padding: 12,
+      marginTop: 4,
+      marginBottom: 4,
+      borderWidth: 1,
+      borderColor: theme.cardBorder,
+    },
+    manualHintText: {
+      flex: 1,
+      fontSize: 12,
+      color: theme.textSecondary,
+      lineHeight: 17,
+    },
+    reportLinkBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      marginTop: 10,
+      paddingVertical: 4,
+    },
+    reportLinkText: {
+      fontSize: 12,
+      color: theme.textTertiary,
+      fontWeight: '600',
+    },
+    reportModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.72)',
+      justifyContent: 'center',
+      padding: 20,
+    },
+    reportModalCard: {
+      backgroundColor: theme.cardBackground,
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: theme.cardBorder,
+    },
+    reportModalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 6,
+    },
+    reportModalTitle: {
+      fontSize: s(17),
+      fontWeight: '800',
+      color: theme.textPrimary,
+    },
+    locationPromptBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: theme.primaryMuted,
+      borderWidth: 1,
+      borderColor: theme.primaryBorder,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    locationPromptText: {
+      fontSize: s(13),
+      fontWeight: '700',
+      color: theme.primaryLight,
+    },
+  });
 };

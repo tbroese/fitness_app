@@ -128,6 +128,9 @@ export interface CloudDatabaseProvider {
   signInAnonymously(): Promise<AuthSession | null>;
   refreshAuthSession(refreshToken: string): Promise<AuthSession | null>;
   getOAuthAuthorizeUrl(provider: 'google' | 'apple', redirectUri: string): string | null;
+  signInWithGoogleIdToken(
+    idToken: string
+  ): Promise<{ session: AuthSession; identity: OAuthUserIdentity } | null>;
   getUserFromAccessToken(
     accessToken: string,
     fallbackProvider: 'google' | 'apple'

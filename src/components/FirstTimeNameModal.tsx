@@ -8,9 +8,12 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as Linking from 'expo-linking';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { SignInAccountInput, useFitness } from '../context/FitnessContext';
 import { cloudDatabase, getOAuthRedirectUri } from '../services/cloud';
+import { storageService } from '../services/storageService';
+import { GOOGLE_WEB_CLIENT_ID } from '../constants/config';
 import { AppTheme } from '../constants/theme';
 
 interface FirstTimeNameModalProps {
@@ -78,15 +81,61 @@ export const FirstTimeNameModal: React.FC<FirstTimeNameModalProps> = ({
 
   const handleGoogleSignIn = async () => {
     setErrorMsg(null);
+    setSubmitting(true);
+
+    const isExpoGo =
+      Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+    if (!isExpoGo && GOOGLE_WEB_CLIENT_ID) {
+      try {
+        const {
+          GoogleSignin,
+          statusCodes,
+        } = require('@react-native-google-signin/google-signin');
+        GoogleSignin.configure({
+          webClientId: GOOGLE_WEB_CLIENT_ID,
+        });
+        await GoogleSignin.hasPlayServices();
+        const response = await GoogleSignin.signIn();
+        const idToken = response?.data?.idToken || (response as any)?.idToken;
+        if (!idToken) {
+          setSubmitting(false);
+          setErrorMsg('Google sign-in did not return an ID token.');
+          return;
+        }
+
+        const result = await cloudDatabase.signInWithGoogleIdToken(idToken);
+        setSubmitting(false);
+        if (result) {
+          await storageService.saveAuthSession(result.session);
+          await onSignIn({
+            fullName: result.identity.fullName,
+            email: result.identity.email,
+            authProvider: 'google',
+            authUserId: result.identity.authUserId,
+          });
+        } else {
+          setErrorMsg('Could not sign in with Google right now.');
+        }
+        return;
+      } catch (err: any) {
+        if (err?.code === 'SIGN_IN_CANCELLED' || err?.code === '12501') {
+          setSubmitting(false);
+          return;
+        }
+        console.warn('Native Google Sign-In failed, falling back to browser OAuth:', err);
+      }
+    }
+
     const redirectUri = getOAuthRedirectUri();
     const authUrl = cloudDatabase.getOAuthAuthorizeUrl('google', redirectUri);
 
     if (!authUrl) {
+      setSubmitting(false);
       setErrorMsg('Supabase URL is not configured yet.');
       return;
     }
 
-    setSubmitting(true);
     try {
       await Linking.openURL(authUrl);
     } catch (e) {

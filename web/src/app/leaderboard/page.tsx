@@ -66,7 +66,6 @@ export default function LeaderboardPage() {
         .select(
           'id, full_name, user_tag, gym_name, verified_streak, best_verified_streak, total_gym_time_minutes, squat_pr_kg, bench_pr_kg, deadlift_pr_kg'
         )
-        .eq('is_verified', true)
         .limit(200);
 
       if (active && data) {

@@ -43,7 +43,10 @@ export const AgeRangeSlider: React.FC<AgeRangeSliderProps> = ({
   const minPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         startMinRef.current = minAgeRef.current;
       },
@@ -64,7 +67,10 @@ export const AgeRangeSlider: React.FC<AgeRangeSliderProps> = ({
   const maxPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         startMaxRef.current = maxAgeRef.current;
       },

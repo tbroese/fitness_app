@@ -9,7 +9,7 @@ import { triggerSelectionHaptic } from '../../utils/haptics';
 const TAB_ROUTES = ['/', '/history', '/leaderboard', '/goal', '/profile'] as const;
 
 export default function TabLayout() {
-  const { theme } = useFitness();
+  const { theme, isTabSwipeLocked, isTabSwipeLockedRef } = useFitness();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const currentIndexRef = useRef(0);
@@ -61,7 +61,7 @@ export default function TabLayout() {
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        if (isAnimatingRef.current) return false;
+        if (isAnimatingRef.current || isTabSwipeLockedRef.current) return false;
         const absDx = Math.abs(gestureState.dx);
         const absDy = Math.abs(gestureState.dy);
         return absDx > 25 && absDx > absDy * 1.6;
@@ -104,7 +104,10 @@ export default function TabLayout() {
   ).current;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }} {...panResponder.panHandlers}>
+    <View
+      style={{ flex: 1, backgroundColor: theme.background }}
+      {...(isTabSwipeLocked ? {} : panResponder.panHandlers)}
+    >
       <Animated.View style={{ flex: 1, transform: [{ translateX: slideX }] }}>
         <Tabs
           key={theme.background}

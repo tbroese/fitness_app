@@ -7,10 +7,12 @@ export const ENABLE_DEBUG_SIMULATOR = false;
 /**
  * Public Privacy Policy URL (hosted via GitHub Pages `/docs` on `main`).
  */
-export const PRIVACY_POLICY_URL =
-  'https://tbroese.github.io/fitness_app/privacy-policy.html';
-
 export const WEBSITE_URL = 'https://inertialeaderboard.com';
+
+/**
+ * Public Privacy Policy URL hosted on the Inertia website.
+ */
+export const PRIVACY_POLICY_URL = `${WEBSITE_URL}/privacy`;
 
 /**
  * Google OAuth Web Client ID (from Google Cloud Console -> Credentials -> Web application)

@@ -163,8 +163,7 @@ export async function subscribeToLocationUpdates(
   try {
     const { granted } = await Location.getForegroundPermissionsAsync();
     if (!granted) {
-      const req = await Location.requestForegroundPermissionsAsync();
-      if (!req.granted) return null;
+      return null;
     }
 
     const sub = await Location.watchPositionAsync(

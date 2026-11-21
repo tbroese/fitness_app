@@ -106,6 +106,9 @@ interface FitnessContextType {
   fontSizeMode: FontSizeMode;
   fontScale: number;
   setFontSizeMode: (mode: FontSizeMode) => Promise<void>;
+  isTabSwipeLocked: boolean;
+  isTabSwipeLockedRef: React.MutableRefObject<boolean>;
+  setTabSwipeLocked: (locked: boolean) => void;
   refreshLocation: () => Promise<void>;
   refreshPermissionStatus: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
   requestAutoTrackingPermission: () => Promise<{ foregroundGranted: boolean; backgroundGranted: boolean }>;
@@ -271,6 +274,10 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       coords?: { latitude: number; longitude: number } | null
     ): Promise<VerifiedGym[]> => {
       const q = query.trim().toLowerCase();
+      if (!q && !coords) {
+        return [];
+      }
+
       const localMatches = VERIFIED_GYMS.filter(
         (g) =>
           !q ||
@@ -278,17 +285,24 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
           g.address.toLowerCase().includes(q)
       );
 
-      if (!cloudDatabase.isConfigured()) {
-        return localMatches;
+      let combined = localMatches;
+      if (cloudDatabase.isConfigured()) {
+        const remote = await cloudDatabase.searchGyms(query, coords, 25);
+        if (remote.length > 0) {
+          const seen = new Set(remote.map((g) => g.id));
+          combined = [...remote, ...localMatches.filter((g) => !seen.has(g.id))];
+        }
       }
 
-      const remote = await cloudDatabase.searchGyms(query, coords, 25);
-      if (remote.length === 0) {
-        return localMatches;
+      if (coords) {
+        combined = [...combined].sort(
+          (a, b) =>
+            calculateDistanceMeters(coords.latitude, coords.longitude, a.latitude, a.longitude) -
+            calculateDistanceMeters(coords.latitude, coords.longitude, b.latitude, b.longitude)
+        );
       }
 
-      const seen = new Set(remote.map((g) => g.id));
-      return [...localMatches.filter((g) => !seen.has(g.id)), ...remote];
+      return combined;
     },
     []
   );
@@ -1053,6 +1067,13 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await storageService.savePreferences(updatedPrefs);
   }, []);
 
+  const [isTabSwipeLocked, setIsTabSwipeLockedState] = useState(false);
+  const isTabSwipeLockedRef = useRef(false);
+  const setTabSwipeLocked = useCallback((locked: boolean) => {
+    isTabSwipeLockedRef.current = locked;
+    setIsTabSwipeLockedState(locked);
+  }, []);
+
   const refreshPermissionStatus = useCallback(async () => {
     const perms = await getLocationPermissionStatus();
     setPermissionStatus(perms);
@@ -1274,10 +1295,15 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.warn('Error deleting remote account:', e);
     }
 
+    cloudDatabase.setAuthSession(null);
     await stopGymGeofence();
     await storageService.clearAllData(true);
 
     const freshProfile = createDefaultUserProfile();
+    await storageService.saveUserProfile(freshProfile);
+    userProfileRef.current = freshProfile;
+    preferencesRef.current = DEFAULT_PREFERENCES;
+
     setUserProfile(freshProfile);
     setPreferences(DEFAULT_PREFERENCES);
     setStreakState({ ...DEFAULT_STREAK_STATE, userId: freshProfile.id });
@@ -1325,6 +1351,9 @@ export const FitnessProvider: React.FC<{ children: React.ReactNode }> = ({ child
         fontSizeMode,
         fontScale,
         setFontSizeMode,
+        isTabSwipeLocked,
+        isTabSwipeLockedRef,
+        setTabSwipeLocked,
         refreshLocation,
         refreshPermissionStatus,
         requestAutoTrackingPermission,

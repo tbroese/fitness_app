@@ -9,10 +9,14 @@ import {
   TextInput,
   Alert,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useFitness } from '../../context/FitnessContext';
+import { triggerLightHaptic } from '../../utils/haptics';
 import { RemoteLeaderboardUser } from '../../services/cloud';
 import { AgeRangeSlider, MAX_AGE_BOUND, MIN_AGE_BOUND } from '../../components/AgeRangeSlider';
 import { UserGender, WeightUnit } from '../../types/fitness';
@@ -99,6 +103,7 @@ export default function LeaderboardScreen() {
     fetchLeaderboardEntries,
     refreshFriendships,
     searchUsersForFriend,
+    setTabSwipeLocked,
     sendFriendRequestToUser,
     respondToFriendRequest,
     setPreferredWeightUnit,
@@ -134,6 +139,15 @@ export default function LeaderboardScreen() {
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RemoteLeaderboardUser[]>([]);
   const [searching, setSearching] = useState(false);
+  const [copiedTag, setCopiedTag] = useState(false);
+
+  const handleCopyFriendTag = async () => {
+    const tagText = `${userProfile.fullName || 'You'} #${userProfile.userTag || '4821'}`;
+    await Clipboard.setStringAsync(tagText);
+    triggerLightHaptic();
+    setCopiedTag(true);
+    setTimeout(() => setCopiedTag(false), 2000);
+  };
 
   const loadLeaderboard = useCallback(async () => {
     if (!isCloudConfigured) {
@@ -155,6 +169,11 @@ export default function LeaderboardScreen() {
   useEffect(() => {
     loadLeaderboard();
   }, [loadLeaderboard]);
+
+  useEffect(() => {
+    setTabSwipeLocked(moreFiltersVisible);
+    return () => setTabSwipeLocked(false);
+  }, [moreFiltersVisible, setTabSwipeLocked]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -266,10 +285,8 @@ export default function LeaderboardScreen() {
     const otherEntries: LeaderboardEntry[] = sourceUsers
       .filter((u) => u.id !== currentUserEntry.id)
       .filter((u) => {
-        if (selectedCategory === 'global' || selectedCategory === 'gym') {
-          if (!u.isVerified) return false;
-        }
         if (selectedCategory === 'gym') {
+          if (!u.isVerified) return false;
           if (!preferences.gymLocation?.name || !preferences.gymLocation?.isVerified) {
             return false;
           }
@@ -311,7 +328,7 @@ export default function LeaderboardScreen() {
       });
 
     const includeCurrentUser =
-      selectedCategory === 'friends' || currentUserEntry.isVerified;
+      selectedCategory !== 'gym' || currentUserEntry.isVerified;
     const rawList = includeCurrentUser
       ? [currentUserEntry, ...otherEntries]
       : [...otherEntries];
@@ -566,10 +583,8 @@ export default function LeaderboardScreen() {
     );
   };
 
-  const renderFriendsHeader = () => {
-    if (selectedCategory !== 'friends') return null;
-
-    return (
+  const friendsHeaderElement =
+    selectedCategory !== 'friends' ? undefined : (
       <View style={styles.friendsHeaderContainer}>
         {/* Your Shareable Tag Card */}
         <View style={styles.yourTagBar}>
@@ -577,11 +592,20 @@ export default function LeaderboardScreen() {
             <Ionicons name="pricetag-outline" size={16} color={theme.primaryLight} />
             <Text style={styles.yourTagLabel}>Your Friend Tag:</Text>
           </View>
-          <View style={styles.yourTagValueBadge}>
+          <TouchableOpacity
+            style={styles.yourTagValueBadge}
+            onPress={handleCopyFriendTag}
+            activeOpacity={0.75}
+          >
             <Text style={styles.yourTagValueText}>
               {userProfile.fullName || 'You'} #{userProfile.userTag || '4821'}
             </Text>
-          </View>
+            <Ionicons
+              name={copiedTag ? 'checkmark' : 'copy-outline'}
+              size={14}
+              color={copiedTag ? theme.successLight : theme.primaryLight}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Search & Add Friend Box */}
@@ -593,6 +617,9 @@ export default function LeaderboardScreen() {
               style={styles.searchInput}
               value={friendSearchQuery}
               onChangeText={setFriendSearchQuery}
+              onFocus={() =>
+                flatListRef.current?.scrollToOffset({ offset: 0, animated: true })
+              }
               placeholder="Search e.g. Alex Rivera or #7390"
               placeholderTextColor={theme.textTertiary}
               autoCapitalize="none"
@@ -672,11 +699,14 @@ export default function LeaderboardScreen() {
         )}
       </View>
     );
-  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-      <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
         {/* 1. Subcategory Tabs: Global | Gym | Friends */}
         <View style={styles.categoryBar}>
           {CATEGORIES.map((cat) => {
@@ -712,6 +742,9 @@ export default function LeaderboardScreen() {
             );
           })}
         </View>
+
+        {/* Friends Header (Your Tag, Add Friend Search, Incoming Requests) */}
+        {friendsHeaderElement}
 
         {/* 2. Filter Pills & More Button */}
         <View style={styles.filterSection}>
@@ -800,12 +833,12 @@ export default function LeaderboardScreen() {
           </View>
         </View>
 
-        {/* Custom Gym Notice on Global & Gym Tabs */}
-        {selectedCategory !== 'friends' && !currentUserEntry.isVerified && (
+        {/* Custom Gym Notice on Gym Tab */}
+        {selectedCategory === 'gym' && !currentUserEntry.isVerified && (
           <View style={styles.customGymNotice}>
             <Ionicons name="shield-outline" size={16} color={theme.warning} />
             <Text style={styles.customGymNoticeText}>
-              Custom gyms only count on your Personal & Friends leaderboards. Select a verified gym in Goal & Gym to compete here.
+              Custom gyms only count on your Personal & Friends leaderboards. Select a verified gym in Goal & Gym to compete on the Gym leaderboard.
             </Text>
           </View>
         )}
@@ -816,7 +849,6 @@ export default function LeaderboardScreen() {
           data={entries}
           keyExtractor={(item) => `${selectedCategory}-${item.id}`}
           renderItem={renderLeaderboardItem}
-          ListHeaderComponent={renderFriendsHeader}
           contentContainerStyle={[
             styles.listContent,
             currentUserIndex >= 5 && { paddingBottom: 76 },
@@ -861,7 +893,7 @@ export default function LeaderboardScreen() {
             </View>
           </TouchableOpacity>
         )}
-      </View>
+      </KeyboardAvoidingView>
 
       {/* More Filters Modal (Gender, lbs/kg, Age Range Slider) */}
       <Modal
@@ -1333,7 +1365,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     lineHeight: 15,
   },
   friendsHeaderContainer: {
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
     gap: 10,
   },
   yourTagBar: {
@@ -1358,6 +1392,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.textSecondary,
   },
   yourTagValueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: theme.primaryMuted,
     paddingHorizontal: 10,
     paddingVertical: 4,

@@ -221,6 +221,63 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
     )}`;
   }
 
+  async signInWithGoogleIdToken(
+    idToken: string
+  ): Promise<{ session: AuthSession; identity: OAuthUserIdentity } | null> {
+    if (!this.isConfigured() || !idToken) return null;
+
+    try {
+      const res = await fetch(
+        `${SUPABASE_CONFIG.url}/auth/v1/token?grant_type=id_token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_CONFIG.anonKey,
+          },
+          body: JSON.stringify({
+            provider: 'google',
+            id_token: idToken,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        console.warn('[Supabase] Native Google ID token sign-in failed:', await res.text());
+        return null;
+      }
+
+      const data = await res.json();
+      if (!data.access_token || !data.user?.id) return null;
+
+      const session: AuthSession = {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
+        authUserId: data.user.id,
+      };
+      this.setAuthSession(session);
+
+      const email: string = data.user.email || '';
+      const meta = data.user.user_metadata || {};
+      const fullName: string =
+        meta.full_name || meta.name || (email ? email.split('@')[0] : 'Athlete');
+
+      return {
+        session,
+        identity: {
+          authUserId: data.user.id,
+          email,
+          fullName,
+          provider: 'google',
+        },
+      };
+    } catch (e) {
+      console.warn('[Supabase] Error in signInWithGoogleIdToken:', e);
+      return null;
+    }
+  }
+
   async getUserFromAccessToken(
     accessToken: string,
     fallbackProvider: 'google' | 'apple'
@@ -393,9 +450,7 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
         `limit=${limit}`,
       ];
 
-      if (params.category === 'global') {
-        queryParts.push('is_verified=eq.true');
-      } else if (params.category === 'gym') {
+      if (params.category === 'gym') {
         queryParts.push('is_verified=eq.true');
         if (params.gymId) {
           queryParts.push(`gym_id=eq.${encodeURIComponent(params.gymId)}`);
@@ -554,17 +609,33 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
     if (!raw) return [];
 
     try {
+      const qLower = raw.toLowerCase();
+      const cleanTagQuery = qLower.startsWith('#') ? qLower.slice(1) : qLower;
+      const cleanNamePart = raw.replace(/#\d+/g, '').replace(/[(),*]/g, '').trim();
+      const tagMatch = raw.match(/#?(\d{1,4})/);
+      const cleanTagPart = (tagMatch ? tagMatch[1] : cleanTagQuery).replace(/[(),*]/g, '');
+
+      const orFilters: string[] = [];
+      if (cleanNamePart) {
+        orFilters.push(`full_name.ilike.${encodeURIComponent(`*${cleanNamePart}*`)}`);
+      }
+      if (cleanTagPart) {
+        orFilters.push(`user_tag.ilike.${encodeURIComponent(`*${cleanTagPart}*`)}`);
+      }
+      const filterQuery = orFilters.length > 0 ? `&or=(${orFilters.join(',')})` : '';
+
       const allRes = await fetch(
-        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?select=id,full_name,user_tag,email,auth_provider,gender,age,gym_id,gym_name,is_verified,current_streak,best_streak,verified_streak,best_verified_streak,total_gym_time_minutes,workouts_count,weekly_goal,squat_pr_kg,bench_pr_kg,deadlift_pr_kg,updated_at&limit=100`,
+        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?select=*${filterQuery}&limit=50`,
         {
           method: 'GET',
           headers: this.getHeaders(),
         }
       );
-      if (!allRes.ok) return [];
+      if (!allRes.ok) {
+        console.warn('[Supabase] searchUsers failed:', allRes.status, await allRes.text());
+        return [];
+      }
       const rows: SupabaseLeaderboardRow[] = await allRes.json();
-      const qLower = raw.toLowerCase();
-      const cleanTagQuery = qLower.startsWith('#') ? qLower.slice(1) : qLower;
 
       return rows
         .map(mapRowToLeaderboardUser)
@@ -882,9 +953,13 @@ export class SupabaseDatabaseProvider implements CloudDatabaseProvider {
         }
       );
 
-      // Delete the user's leaderboard_users row (cascades to user_workouts)
+      // Delete the user's leaderboard_users row(s) (cascades to user_workouts)
+      const authUid = this.authSession?.authUserId;
+      const deleteFilter = authUid
+        ? `or=(id.eq.${encodeURIComponent(userId)},auth_user_id.eq.${encodeURIComponent(authUid)})`
+        : `id=eq.${encodeURIComponent(userId)}`;
       const res = await fetch(
-        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?id=eq.${encodeURIComponent(userId)}`,
+        `${SUPABASE_CONFIG.url}/rest/v1/leaderboard_users?${deleteFilter}`,
         {
           method: 'DELETE',
           headers: this.getHeaders(),

@@ -14,4 +14,11 @@ export const VERIFIED_GYMS: VerifiedGym[] = [
     latitude: 33.85877397760535,
     longitude: -117.79206834908676,
   },
+  {
+    id: 'manual_vim_vigor_lompoc',
+    name: 'Vim + Vigor Fitness',
+    address: '501 W Central Ave, Lompoc, CA 93436',
+    latitude: 34.66268,
+    longitude: -120.46341,
+  },
 ];

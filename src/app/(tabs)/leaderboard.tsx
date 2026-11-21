@@ -114,6 +114,7 @@ export default function LeaderboardScreen() {
 
   const [selectedCategory, setSelectedCategory] = useState<LeaderboardCategory>('global');
   const [selectedFilter, setSelectedFilter] = useState<LeaderboardFilter>('currentStreak');
+  const [globalVerifiedOnly, setGlobalVerifiedOnly] = useState<boolean>(false);
   const [selectedGender, setSelectedGender] = useState<GenderFilter>('all');
   const [minAge, setMinAge] = useState<number>(MIN_AGE_BOUND);
   const [maxAge, setMaxAge] = useState<number>(MAX_AGE_BOUND);
@@ -219,7 +220,9 @@ export default function LeaderboardScreen() {
       const squat = userProfile.squatPrKg ?? 0;
       const bench = userProfile.benchPrKg ?? 0;
       const deadlift = userProfile.deadliftPrKg ?? 0;
-      const useVerifiedStreak = selectedCategory !== 'friends';
+      const useVerifiedStreak =
+        selectedCategory === 'gym' ||
+        (selectedCategory === 'global' && globalVerifiedOnly);
       return {
         id: userProfile.id || 'current-user',
         name: userProfile.fullName || 'You',
@@ -256,6 +259,7 @@ export default function LeaderboardScreen() {
       totalGymTimeMinutes,
       workouts.length,
       selectedCategory,
+      globalVerifiedOnly,
     ]
   );
 
@@ -285,6 +289,9 @@ export default function LeaderboardScreen() {
     const otherEntries: LeaderboardEntry[] = sourceUsers
       .filter((u) => u.id !== currentUserEntry.id)
       .filter((u) => {
+        if (selectedCategory === 'global' && globalVerifiedOnly && !u.isVerified) {
+          return false;
+        }
         if (selectedCategory === 'gym') {
           if (!u.isVerified) return false;
           if (!preferences.gymLocation?.name || !preferences.gymLocation?.isVerified) {
@@ -301,7 +308,9 @@ export default function LeaderboardScreen() {
         const squat = u.squatPrKg ?? 0;
         const bench = u.benchPrKg ?? 0;
         const deadlift = u.deadliftPrKg ?? 0;
-        const useVerifiedStreak = selectedCategory !== 'friends';
+        const useVerifiedStreak =
+        selectedCategory === 'gym' ||
+        (selectedCategory === 'global' && globalVerifiedOnly);
         return {
           id: u.id,
           name: u.fullName || 'Athlete',
@@ -328,7 +337,9 @@ export default function LeaderboardScreen() {
       });
 
     const includeCurrentUser =
-      selectedCategory !== 'gym' || currentUserEntry.isVerified;
+      selectedCategory === 'friends' ||
+      (selectedCategory === 'global' && !globalVerifiedOnly) ||
+      currentUserEntry.isVerified;
     const rawList = includeCurrentUser
       ? [currentUserEntry, ...otherEntries]
       : [...otherEntries];
@@ -366,6 +377,7 @@ export default function LeaderboardScreen() {
     minAge,
     maxAge,
     preferences.gymLocation,
+    globalVerifiedOnly,
   ]);
 
   const flatListRef = useRef<FlatList<LeaderboardEntry>>(null);
@@ -750,40 +762,66 @@ export default function LeaderboardScreen() {
         <View style={styles.filterSection}>
           <View style={styles.filterHeaderRow}>
             <Text style={styles.filterHeaderLabel}>SORT BY</Text>
-            <TouchableOpacity
-              style={[
-                styles.moreBtn,
-                (selectedGender !== 'all' ||
-                  minAge > MIN_AGE_BOUND ||
-                  maxAge < MAX_AGE_BOUND) &&
-                  styles.moreBtnActive,
-              ]}
-              onPress={() => setMoreFiltersVisible(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="options-outline"
-                size={14}
-                color={
-                  selectedGender !== 'all' ||
-                  minAge > MIN_AGE_BOUND ||
-                  maxAge < MAX_AGE_BOUND
-                    ? theme.primaryLight
-                    : theme.textSecondary
-                }
-              />
-              <Text
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {selectedCategory === 'global' && (
+                <TouchableOpacity
+                  style={[
+                    styles.moreBtn,
+                    globalVerifiedOnly && styles.moreBtnActive,
+                  ]}
+                  onPress={() => setGlobalVerifiedOnly((prev) => !prev)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={globalVerifiedOnly ? 'shield-checkmark' : 'shield-checkmark-outline'}
+                    size={14}
+                    color={globalVerifiedOnly ? theme.primaryLight : theme.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.moreBtnText,
+                      globalVerifiedOnly && styles.moreBtnTextActive,
+                    ]}
+                  >
+                    Verified
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
                 style={[
-                  styles.moreBtnText,
+                  styles.moreBtn,
                   (selectedGender !== 'all' ||
                     minAge > MIN_AGE_BOUND ||
                     maxAge < MAX_AGE_BOUND) &&
-                    styles.moreBtnTextActive,
+                    styles.moreBtnActive,
                 ]}
+                onPress={() => setMoreFiltersVisible(true)}
+                activeOpacity={0.8}
               >
-                More
-              </Text>
-            </TouchableOpacity>
+                <Ionicons
+                  name="options-outline"
+                  size={14}
+                  color={
+                    selectedGender !== 'all' ||
+                    minAge > MIN_AGE_BOUND ||
+                    maxAge < MAX_AGE_BOUND
+                      ? theme.primaryLight
+                      : theme.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.moreBtnText,
+                    (selectedGender !== 'all' ||
+                      minAge > MIN_AGE_BOUND ||
+                      maxAge < MAX_AGE_BOUND) &&
+                      styles.moreBtnTextActive,
+                  ]}
+                >
+                  More
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.filterWrapRow}>
